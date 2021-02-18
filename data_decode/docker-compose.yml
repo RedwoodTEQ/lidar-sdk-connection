@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+        rosbag_decode:
+                build: ./rosbag_decode
+                hostname: 'docker_rosbag_decode'
+                container_name: 'docker_rosbag_decode'
+                volumes: 
+                        - sharedoffline:/offline
+        rosbag_decode_roscore:
+                build: ./rosbag_decode_roscore
+                hostname: 'docker_rosbag_decode_roscore_master'
+                container_name: 'docker_rosbag_decode_roscore_master'
+                volumes:
+                        - sharedoffline:/offline
+                        - sharedstorage:/storage
+
+volumes:
+        sharedoffline:
+                external: true
+        sharedstorage:
+                external: true
