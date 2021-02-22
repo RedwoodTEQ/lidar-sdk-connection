@@ -1,6 +1,3 @@
-
-# This is an auto generated Dockerfile for ros:desktop-full
-# generated from docker_images/create_ros_image.Dockerfile.em
 FROM osrf/ros:melodic-desktop-bionic
 
 # install ros packages
@@ -17,9 +14,14 @@ RUN . /opt/ros/melodic/setup.sh && cd /home && git clone https://github.com/Robo
     && cd rslidar_sdk && git submodule init && git submodule update && mkdir build \
     && cd build && cmake .. && make -j4
 
+# copy Lidar configuration file
 COPY config.yaml /home/rslidar_sdk/config/
+
+# copy shell script to run the Lidar sdk
 COPY new_node_entrypoint.sh /
 
+# set environment variable for ROS master to send data to
 ENV ROS_MASTER_URI="http://docker_roscore_master:11311/"
+
 ENTRYPOINT [ "/bin/sh" ]
 CMD [ "/new_node_entrypoint.sh" ]
