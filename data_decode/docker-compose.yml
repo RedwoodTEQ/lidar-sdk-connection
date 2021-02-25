@@ -1,11 +1,11 @@
 version: "3.9"
 services:
-    rosbag_decode:
-        build: ./rosbag_decode
-        hostname: "docker_rosbag_decode"
-        container_name: "docker_rosbag_decode"
-        volumes:
-            - output:/output
+    # rosbag_decode:
+    #     build: ./rosbag_decode
+    #     hostname: "docker_rosbag_decode"
+    #     container_name: "docker_rosbag_decode"
+    #     volumes:
+    #         - output:/output
     rosbag_decode_roscore:
         build: ./rosbag_decode_roscore
         hostname: "docker_rosbag_decode_roscore_master"
