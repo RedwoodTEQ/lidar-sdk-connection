@@ -1,6 +1,6 @@
 # Lidar SDK Connection
 
-### Tested on native Ubuntu 18.04.5 installation
+### Tested on native Ubuntu 18.04.5 installation with RS-LiDAR-16
 ### First Setup Instructions
 1. Install Docker (https://docs.docker.com/engine/install/ubuntu/).
 2. (Optional) Follow steps to manage docker as non-root user and also enable docker service through systemd (https://docs.docker.com/engine/install/linux-postinstall/) - This is optional, however we will assume from this step onwards that docker can be managed by a non-root user.
