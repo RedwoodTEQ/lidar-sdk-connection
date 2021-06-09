@@ -2,17 +2,17 @@ version: "3.9"
 services:
         roscore:
                 build: ./roscore
-                hostname: 'docker_roscore_master'
-                container_name: 'docker_roscore_master'
+                hostname: 'convert_docker_roscore_master'
+                container_name: 'convert_docker_roscore_master'
                 volumes:
-                        - sharedstorage:/storage
+                        - storage:/storage
         lidar-sdk-node:
                 build: ./lidar_sdk_node
-                hostname: 'docker_lidar_sdk_node'
-                container_name: 'docker_lidar_sdk_node'
+                hostname: 'convert_docker_lidar_sdk_node'
+                container_name: 'convert_docker_lidar_sdk_node'
                 ports:
                         - "192.168.0.2:6699:6699/udp"
                         - "192.168.0.2:7788:7788/udp"
 volumes:
-        sharedstorage:
+        storage:
                 external: true
