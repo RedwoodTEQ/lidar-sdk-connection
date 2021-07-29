@@ -59,7 +59,7 @@ int main () {
     pcl::PassThrough<pcl::PointXYZI> x_filter; 
     x_filter.setInputCloud(cloud2);
     x_filter.setFilterFieldName("x");
-    x_filter.setFilterLimits(0.0, 10000.0);
+    x_filter.setFilterLimits(0.0, 15);
     x_filter.filter(*cloud3);
 
     pcl::PassThrough<pcl::PointXYZI> z_filter;
@@ -71,7 +71,7 @@ int main () {
     pcl::PassThrough<pcl::PointXYZI> y_filter;
     z_filter.setInputCloud(cloud4);
     z_filter.setFilterFieldName("y");
-    z_filter.setFilterLimits(-5, 5);
+    z_filter.setFilterLimits(-10, 10);
     z_filter.filter(*cloud5);
 
     viewer->updatePointCloud<pcl::PointXYZI>(cloud5, "sample cloud");
