@@ -11,6 +11,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/segmentation/segment_differences.h>
 
 using namespace std::literals::chrono_literals;
 
@@ -36,18 +37,26 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
 }
 
 int main () {
+  double filter_x_min = 0.0;
+  double filter_x_max = 15;
+  double filter_z_min = -1;
+  double filter_z_max = 3;
+  double filter_y_min = -12.5;
+  double filter_y_max = 12.5;
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   std::vector<boost::filesystem::path> dir_files;
   std::copy(boost::filesystem::directory_iterator("westmead_pcd"), boost::filesystem::directory_iterator(), std::back_inserter(dir_files));
   std::sort(dir_files.begin(), dir_files.end());
-  pcl::visualization::PCLVisualizer::Ptr viewer;
-  viewer = mapping_vis(display_cloud);
-  for (const boost::filesystem::path & filename : dir_files) {
+  std::vector<boost::filesystem::path> calib_files;
+  std::copy(boost::filesystem::directory_iterator("westmead_pcd/calibration"), boost::filesystem::directory_iterator(), std::back_inserter(calib_files));
+  std::sort(calib_files.begin(), calib_files.end());
+  // First do calibration - right now just break after reading first calibration file
+  for (const boost::filesystem::path & filename : calib_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud3 (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud4 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud5 (new pcl::PointCloud<pcl::PointXYZI>);
     if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
       PCL_ERROR ("Couldn't read pcd file \n");
       return (-1);
@@ -59,22 +68,66 @@ int main () {
     pcl::PassThrough<pcl::PointXYZI> x_filter; 
     x_filter.setInputCloud(cloud2);
     x_filter.setFilterFieldName("x");
-    x_filter.setFilterLimits(0.0, 15);
+    x_filter.setFilterLimits(filter_x_min, filter_x_max);
     x_filter.filter(*cloud3);
 
     pcl::PassThrough<pcl::PointXYZI> z_filter;
     z_filter.setInputCloud(cloud3);
     z_filter.setFilterFieldName("z");
-    z_filter.setFilterLimits(-1, 3);
+    z_filter.setFilterLimits(filter_z_min, filter_z_max);
     z_filter.filter(*cloud4);
 
     pcl::PassThrough<pcl::PointXYZI> y_filter;
     z_filter.setInputCloud(cloud4);
     z_filter.setFilterFieldName("y");
-    z_filter.setFilterLimits(-10, 10);
+    z_filter.setFilterLimits(filter_y_min, filter_y_max);
+    z_filter.filter(*calib_cloud);
+    break;
+  }
+  std::cout << "====================" << std::endl;
+
+  pcl::visualization::PCLVisualizer::Ptr viewer;
+  viewer = mapping_vis(display_cloud);
+  for (const boost::filesystem::path & filename : dir_files) {
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud3 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud4 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud5 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud6 (new pcl::PointCloud<pcl::PointXYZI>);
+    if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
+      PCL_ERROR ("Couldn't read pcd file \n");
+      return (-1);
+    }
+    std::cout << filename.string() << std::endl;
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(*cloud, *cloud2, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
+
+    pcl::PassThrough<pcl::PointXYZI> x_filter; 
+    x_filter.setInputCloud(cloud2);
+    x_filter.setFilterFieldName("x");
+    x_filter.setFilterLimits(filter_x_min, filter_x_max);
+    x_filter.filter(*cloud3);
+
+    pcl::PassThrough<pcl::PointXYZI> z_filter;
+    z_filter.setInputCloud(cloud3);
+    z_filter.setFilterFieldName("z");
+    z_filter.setFilterLimits(filter_z_min, filter_z_max);
+    z_filter.filter(*cloud4);
+
+    pcl::PassThrough<pcl::PointXYZI> y_filter;
+    z_filter.setInputCloud(cloud4);
+    z_filter.setFilterFieldName("y");
+    z_filter.setFilterLimits(filter_y_min, filter_y_max);
     z_filter.filter(*cloud5);
 
-    viewer->updatePointCloud<pcl::PointXYZI>(cloud5, "sample cloud");
+    pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
+    difference_segmenter.setInputCloud(cloud5);
+    difference_segmenter.setTargetCloud(calib_cloud);
+    difference_segmenter.setDistanceThreshold(0.5);
+    difference_segmenter.segment(*cloud6);
+
+    viewer->updatePointCloud<pcl::PointXYZI>(cloud6, "sample cloud");
     viewer->spinOnce(50);
   }
   // std::cout << "Loaded "
