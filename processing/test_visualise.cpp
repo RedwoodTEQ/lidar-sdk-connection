@@ -47,6 +47,7 @@ int main () {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud3 (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud4 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud5 (new pcl::PointCloud<pcl::PointXYZI>);
     if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
       PCL_ERROR ("Couldn't read pcd file \n");
       return (-1);
@@ -64,10 +65,16 @@ int main () {
     pcl::PassThrough<pcl::PointXYZI> z_filter;
     z_filter.setInputCloud(cloud3);
     z_filter.setFilterFieldName("z");
-    z_filter.setFilterLimits(-3.0, 10000.0);
+    z_filter.setFilterLimits(-1, 3);
     z_filter.filter(*cloud4);
-    // pcl::PassThrough<pcl::PointXYZI> y_filter;
-    viewer->updatePointCloud<pcl::PointXYZI>(cloud4, "sample cloud");
+
+    pcl::PassThrough<pcl::PointXYZI> y_filter;
+    z_filter.setInputCloud(cloud4);
+    z_filter.setFilterFieldName("y");
+    z_filter.setFilterLimits(-5, 5);
+    z_filter.filter(*cloud5);
+
+    viewer->updatePointCloud<pcl::PointXYZI>(cloud5, "sample cloud");
     viewer->spinOnce(50);
   }
   // std::cout << "Loaded "
