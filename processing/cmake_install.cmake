@@ -1,4 +1,4 @@
-# Install script for directory: /home/william/processing
+# Install script for directory: /home/william/lidar-sdk-connection/processing
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/william/processing/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/william/lidar-sdk-connection/processing/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
