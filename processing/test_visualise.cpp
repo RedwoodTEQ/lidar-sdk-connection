@@ -96,9 +96,7 @@ int main () {
 
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud);
-  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(300,0,0), 255, 0, 0, std::string("extended_x"), 0);
-  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(0,300,0), 0, 255, 0, std::string("extended_y"), 0);
-  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(0,0,300), 0, 0, 255, std::string("extended_z"), 0);
+  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(300,0,0), 255, 0, 0, std::string("median_divider_line"), 0);
   for (const boost::filesystem::path & filename : dir_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
