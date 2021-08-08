@@ -37,12 +37,20 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
 }
 
 int main () {
-  double filter_x_min = 0.0;
-  double filter_x_max = 15;
-  double filter_z_min = -1;
-  double filter_z_max = 3;
-  double filter_y_min = -12.5;
-  double filter_y_max = 12.5;
+  // double filter_x_min = 0.0;
+  // double filter_x_max = 15;
+  // double filter_z_min = -1;
+  // double filter_z_max = 3;
+  // double filter_y_min = -12.5;
+  // double filter_y_max = 12.5;
+  bool bg_filtering = false;
+
+  double filter_x_min = -10000;
+  double filter_x_max = 10000;
+  double filter_z_min = -10000;
+  double filter_z_max = 10000;
+  double filter_y_min = -10000;
+  double filter_y_max = 10000;
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   std::vector<boost::filesystem::path> dir_files;
@@ -88,6 +96,9 @@ int main () {
 
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud);
+  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(300,0,0), 255, 0, 0, std::string("extended_x"), 0);
+  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(0,300,0), 0, 255, 0, std::string("extended_y"), 0);
+  viewer->addLine(pcl::PointXYZ(0,0,0), pcl::PointXYZ(0,0,300), 0, 0, 255, std::string("extended_z"), 0);
   for (const boost::filesystem::path & filename : dir_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
@@ -121,13 +132,21 @@ int main () {
     z_filter.setFilterLimits(filter_y_min, filter_y_max);
     z_filter.filter(*cloud5);
 
-    pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
-    difference_segmenter.setInputCloud(cloud5);
-    difference_segmenter.setTargetCloud(calib_cloud);
-    difference_segmenter.setDistanceThreshold(0.5);
-    difference_segmenter.segment(*cloud6);
-
-    viewer->updatePointCloud<pcl::PointXYZI>(cloud6, "sample cloud");
+    if (bg_filtering) {
+      pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
+      difference_segmenter.setInputCloud(cloud5);
+      difference_segmenter.setTargetCloud(calib_cloud);
+      difference_segmenter.setDistanceThreshold(0.5);
+      difference_segmenter.segment(*cloud6);  
+    }
+    
+    if (bg_filtering) {
+      viewer->updatePointCloud<pcl::PointXYZI>(cloud6, "sample cloud");
+    }
+    else {
+      viewer->updatePointCloud<pcl::PointXYZI>(cloud5, "sample cloud");
+    }
+    
     viewer->spinOnce(50);
   }
   // std::cout << "Loaded "
