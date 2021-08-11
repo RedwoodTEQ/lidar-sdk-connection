@@ -6,6 +6,7 @@
 
 #include <boost/filesystem.hpp>
 
+#include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/io/pcd_io.h>
@@ -14,6 +15,8 @@
 #include <pcl/segmentation/segment_differences.h>
 
 using namespace std::literals::chrono_literals;
+
+# define M_PI           3.14159265358979323846  /* pi */
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
 {
@@ -37,20 +40,22 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
 }
 
 int main () {
-  // double filter_x_min = 0.0;
-  // double filter_x_max = 15;
-  // double filter_z_min = -1;
-  // double filter_z_max = 3;
-  // double filter_y_min = -12.5;
-  // double filter_y_max = 12.5;
-  bool bg_filtering = true;
+  double filter_x_min = 0.0;
+  double filter_x_max = 15;
+  double filter_z_min = -1;
+  double filter_z_max = 3;
+  double filter_y_min = -12.5;
+  double filter_y_max = 12.5;
+  bool bg_filtering = false;
+  bool pass_through_filtering = false;
+  bool box_filtering = true;
 
-  double filter_x_min = -10000;
-  double filter_x_max = 10000;
-  double filter_z_min = -10000;
-  double filter_z_max = 10000;
-  double filter_y_min = -10000;
-  double filter_y_max = 10000;
+  // double filter_x_min = -10000;
+  // double filter_x_max = 10000;
+  // double filter_z_min = -10000;
+  // double filter_z_max = 10000;
+  // double filter_y_min = -10000;
+  // double filter_y_max = 10000;
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   std::vector<boost::filesystem::path> dir_files;
@@ -102,54 +107,81 @@ int main () {
   viewer->addLine(pcl::PointXYZ(-9,14,0), pcl::PointXYZ(50,-39,0), 255, 0, 0, std::string("road_boundary_line"), 0);
   viewer->addLine(pcl::PointXYZ(3.9,-10,0), pcl::PointXYZ(20.9,10,0), 0, 255, 0, std::string("far_cut_off_line"), 0);
   viewer->addLine(pcl::PointXYZ(1.4025,20,0), pcl::PointXYZ(-15.5975,0,0), 0, 255, 0, std::string("close_cut_off_line"), 0);
+  // viewer->addLine(pcl::PointXYZ(6.0,-2.97,0), pcl::PointXYZ(25.0,25.0,0), 0, 0, 255, std::string("test_line"), 0);
   for (const boost::filesystem::path & filename : dir_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud3 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud4 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud5 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud6 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughIn (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr bgBetter (new pcl::PointCloud<pcl::PointXYZI>);
+
+
     if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
       PCL_ERROR ("Couldn't read pcd file \n");
       return (-1);
     }
     std::cout << filename.string() << std::endl;
     std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(*cloud, *cloud2, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
+    pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
-    pcl::PassThrough<pcl::PointXYZI> x_filter; 
-    x_filter.setInputCloud(cloud2);
-    x_filter.setFilterFieldName("x");
-    x_filter.setFilterLimits(filter_x_min, filter_x_max);
-    x_filter.filter(*cloud3);
+    if (pass_through_filtering){
+      pcl::PassThrough<pcl::PointXYZI> x_filter; 
+      x_filter.setInputCloud(passThroughIn);
+      x_filter.setFilterFieldName("x");
+      x_filter.setFilterLimits(filter_x_min, filter_x_max);
+      x_filter.filter(*passThroughBetter);
 
-    pcl::PassThrough<pcl::PointXYZI> z_filter;
-    z_filter.setInputCloud(cloud3);
-    z_filter.setFilterFieldName("z");
-    z_filter.setFilterLimits(filter_z_min, filter_z_max);
-    z_filter.filter(*cloud4);
+      passThroughIn->clear();
 
-    pcl::PassThrough<pcl::PointXYZI> y_filter;
-    z_filter.setInputCloud(cloud4);
-    z_filter.setFilterFieldName("y");
-    z_filter.setFilterLimits(filter_y_min, filter_y_max);
-    z_filter.filter(*cloud5);
+      pcl::PassThrough<pcl::PointXYZI> z_filter;
+      z_filter.setInputCloud(passThroughBetter);
+      z_filter.setFilterFieldName("z");
+      z_filter.setFilterLimits(filter_z_min, filter_z_max);
+      z_filter.filter(*passThroughIn);
+
+      passThroughBetter->clear();
+
+      pcl::PassThrough<pcl::PointXYZI> y_filter;
+      z_filter.setInputCloud(passThroughIn);
+      z_filter.setFilterFieldName("y");
+      z_filter.setFilterLimits(filter_y_min, filter_y_max);
+      z_filter.filter(*passThroughBetter);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughIn, *passThroughBetter);
+    }
+
+    if (box_filtering){
+      pcl::CropBox<pcl::PointXYZI> box_filter;
+      std::vector<int> indices;
+      box_filter.setInputCloud(passThroughBetter);
+      Eigen::Vector4f min_pt (0.0f, 0.0f, -20.0f, 1);
+      Eigen::Vector4f max_pt (8.0f, 21.341f, 20.0f, 1);
+      box_filter.setMin (min_pt);
+      box_filter.setMax (max_pt);
+      box_filter.setTransform(pcl::getTransformation(-5.0f, 8.4f, 0.0f, 0.0f, 0.0f, -41.9872 * M_PI / 180.0));
+      // box_filter.setNegative(true);
+      // box_filter.setMin(Eigen::Vector4f(0.0, 18.35));
+      // box_filter.setMax(Eigen::Vector4f(9.88, -2.97));
+      box_filter.filter(indices);
+      box_filter.filter(*boxBetter);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughBetter, *boxBetter);
+    }
+    
 
     if (bg_filtering) {
       pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
-      difference_segmenter.setInputCloud(cloud5);
+      difference_segmenter.setInputCloud(boxBetter);
       difference_segmenter.setTargetCloud(calib_cloud);
       difference_segmenter.setDistanceThreshold(0.5);
-      difference_segmenter.segment(*cloud6);  
-    }
-    
-    if (bg_filtering) {
-      viewer->updatePointCloud<pcl::PointXYZI>(cloud6, "sample cloud");
-    }
+      difference_segmenter.segment(*bgBetter);  
+    } 
     else {
-      viewer->updatePointCloud<pcl::PointXYZI>(cloud5, "sample cloud");
+      pcl::copyPointCloud(*boxBetter, *bgBetter);
     }
-    
+    viewer->updatePointCloud<pcl::PointXYZI>(bgBetter, "sample cloud");
     viewer->spinOnce(50);
   }
   // std::cout << "Loaded "
