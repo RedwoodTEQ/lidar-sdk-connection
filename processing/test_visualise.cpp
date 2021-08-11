@@ -13,6 +13,10 @@
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/segmentation/segment_differences.h>
+#include <pcl/segmentation/conditional_euclidean_clustering.h>
+#include <pcl/filters/voxel_grid.h>
+
+#include <pcl/features/normal_3d.h>
 
 using namespace std::literals::chrono_literals;
 
@@ -37,6 +41,10 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     auto up_z = 100;
     viewer->setCameraPosition(pos_x, pos_y, pos_z, view_x, view_y, view_z, up_x, up_y, up_z, 0);
     return (viewer);
+}
+
+bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINormal& b, float squared_d) {
+  return true;
 }
 
 int main () {
@@ -136,6 +144,7 @@ int main () {
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr bgBetter (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr clusterBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
 
     if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
@@ -200,6 +209,38 @@ int main () {
     else {
       pcl::copyPointCloud(*boxBetter, *bgBetter);
     }
+    std::cout << "Points in frame: " << bgBetter->size() << std::endl;
+    // // Clustering test
+
+    if (bgBetter->size() > 0){
+      pcl::PointCloud<pcl::PointXYZINormal>::Ptr bgBetter_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
+      pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
+      pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters);
+      pcl::copyPointCloud(*bgBetter, *bgBetter_with_normals);
+      pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
+      ne.setInputCloud(bgBetter);
+      ne.setSearchMethod(search_tree);
+      ne.setRadiusSearch(1.0);
+      ne.compute(*bgBetter_with_normals);
+      pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
+      cec.setInputCloud(bgBetter_with_normals);
+      cec.setConditionFunction(&customRegionGrowing);
+      cec.setClusterTolerance(1.0);
+      cec.setMinClusterSize(50);
+      cec.segment(*clusters);
+
+      for (int i = 0; i < clusters->size (); ++i)
+      {
+        int label = rand () % 8;
+        for (int j = 0; j < (*clusters)[i].indices.size (); ++j)
+          (*bgBetter)[(*clusters)[i].indices[j]].intensity = label;
+      }
+      std::cout << clusters->size() << " vehicles in frame" << std::endl;
+      std::cout << "==================" << std::endl;
+    } else {
+      std::cout << "0 vehicles in frame" << std::endl;
+    }
+    
     viewer->updatePointCloud<pcl::PointXYZI>(bgBetter, "sample cloud");
     viewer->spinOnce(50);
   }

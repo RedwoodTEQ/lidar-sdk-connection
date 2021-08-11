@@ -250,6 +250,10 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/con
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/conversions.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/correspondence.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/exceptions.h
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/features/feature.h
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/features/impl/feature.hpp
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/features/impl/normal_3d.hpp
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/features/normal_3d.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/boost.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/crop_box.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/filter.h
@@ -258,7 +262,9 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/fil
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/impl/filter.hpp
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/impl/filter_indices.hpp
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/impl/passthrough.hpp
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/impl/voxel_grid.hpp
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/passthrough.h
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/filters/voxel_grid.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/for_each_type.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/geometry/planar_polygon.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/impl/cloud_iterator.hpp
@@ -302,6 +308,8 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/sea
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/search/organized.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/search/pcl_search.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/search/search.h
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/segmentation/conditional_euclidean_clustering.h
+CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/segmentation/impl/conditional_euclidean_clustering.hpp
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/segmentation/impl/segment_differences.hpp
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/segmentation/segment_differences.h
 CMakeFiles/test_visualise.dir/test_visualise.cpp.o: /usr/include/pcl-1.8/pcl/visualization/area_picking_event.h

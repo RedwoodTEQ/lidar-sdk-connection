@@ -251,6 +251,10 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o
  /usr/include/pcl-1.8/pcl/conversions.h
  /usr/include/pcl-1.8/pcl/correspondence.h
  /usr/include/pcl-1.8/pcl/exceptions.h
+ /usr/include/pcl-1.8/pcl/features/feature.h
+ /usr/include/pcl-1.8/pcl/features/impl/feature.hpp
+ /usr/include/pcl-1.8/pcl/features/impl/normal_3d.hpp
+ /usr/include/pcl-1.8/pcl/features/normal_3d.h
  /usr/include/pcl-1.8/pcl/filters/boost.h
  /usr/include/pcl-1.8/pcl/filters/crop_box.h
  /usr/include/pcl-1.8/pcl/filters/filter.h
@@ -259,7 +263,9 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o
  /usr/include/pcl-1.8/pcl/filters/impl/filter.hpp
  /usr/include/pcl-1.8/pcl/filters/impl/filter_indices.hpp
  /usr/include/pcl-1.8/pcl/filters/impl/passthrough.hpp
+ /usr/include/pcl-1.8/pcl/filters/impl/voxel_grid.hpp
  /usr/include/pcl-1.8/pcl/filters/passthrough.h
+ /usr/include/pcl-1.8/pcl/filters/voxel_grid.h
  /usr/include/pcl-1.8/pcl/for_each_type.h
  /usr/include/pcl-1.8/pcl/geometry/planar_polygon.h
  /usr/include/pcl-1.8/pcl/impl/cloud_iterator.hpp
@@ -303,6 +309,8 @@ CMakeFiles/test_visualise.dir/test_visualise.cpp.o
  /usr/include/pcl-1.8/pcl/search/organized.h
  /usr/include/pcl-1.8/pcl/search/pcl_search.h
  /usr/include/pcl-1.8/pcl/search/search.h
+ /usr/include/pcl-1.8/pcl/segmentation/conditional_euclidean_clustering.h
+ /usr/include/pcl-1.8/pcl/segmentation/impl/conditional_euclidean_clustering.hpp
  /usr/include/pcl-1.8/pcl/segmentation/impl/segment_differences.hpp
  /usr/include/pcl-1.8/pcl/segmentation/segment_differences.h
  /usr/include/pcl-1.8/pcl/visualization/area_picking_event.h
