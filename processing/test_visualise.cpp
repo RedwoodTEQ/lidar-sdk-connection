@@ -46,16 +46,10 @@ int main () {
   double filter_z_max = 3;
   double filter_y_min = -12.5;
   double filter_y_max = 12.5;
-  bool bg_filtering = false;
+  bool bg_filtering = true;
   bool pass_through_filtering = false;
   bool box_filtering = true;
 
-  // double filter_x_min = -10000;
-  // double filter_x_max = 10000;
-  // double filter_z_min = -10000;
-  // double filter_z_max = 10000;
-  // double filter_y_min = -10000;
-  // double filter_y_max = 10000;
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   std::vector<boost::filesystem::path> dir_files;
@@ -67,34 +61,62 @@ int main () {
   // First do calibration - right now just break after reading first calibration file
   for (const boost::filesystem::path & filename : calib_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud3 (new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud4 (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughIn (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr bgBetter (new pcl::PointCloud<pcl::PointXYZI>);
+
+
     if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
       PCL_ERROR ("Couldn't read pcd file \n");
       return (-1);
     }
     std::cout << filename.string() << std::endl;
     std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(*cloud, *cloud2, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
+    pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
-    pcl::PassThrough<pcl::PointXYZI> x_filter; 
-    x_filter.setInputCloud(cloud2);
-    x_filter.setFilterFieldName("x");
-    x_filter.setFilterLimits(filter_x_min, filter_x_max);
-    x_filter.filter(*cloud3);
+    if (pass_through_filtering){
+      pcl::PassThrough<pcl::PointXYZI> x_filter; 
+      x_filter.setInputCloud(passThroughIn);
+      x_filter.setFilterFieldName("x");
+      x_filter.setFilterLimits(filter_x_min, filter_x_max);
+      x_filter.filter(*passThroughBetter);
 
-    pcl::PassThrough<pcl::PointXYZI> z_filter;
-    z_filter.setInputCloud(cloud3);
-    z_filter.setFilterFieldName("z");
-    z_filter.setFilterLimits(filter_z_min, filter_z_max);
-    z_filter.filter(*cloud4);
+      passThroughIn->clear();
 
-    pcl::PassThrough<pcl::PointXYZI> y_filter;
-    z_filter.setInputCloud(cloud4);
-    z_filter.setFilterFieldName("y");
-    z_filter.setFilterLimits(filter_y_min, filter_y_max);
-    z_filter.filter(*calib_cloud);
+      pcl::PassThrough<pcl::PointXYZI> z_filter;
+      z_filter.setInputCloud(passThroughBetter);
+      z_filter.setFilterFieldName("z");
+      z_filter.setFilterLimits(filter_z_min, filter_z_max);
+      z_filter.filter(*passThroughIn);
+
+      passThroughBetter->clear();
+
+      pcl::PassThrough<pcl::PointXYZI> y_filter;
+      z_filter.setInputCloud(passThroughIn);
+      z_filter.setFilterFieldName("y");
+      z_filter.setFilterLimits(filter_y_min, filter_y_max);
+      z_filter.filter(*passThroughBetter);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughIn, *passThroughBetter);
+    }
+
+    if (box_filtering){
+      pcl::CropBox<pcl::PointXYZI> box_filter;
+      std::vector<int> indices2;
+      box_filter.setInputCloud(passThroughBetter);
+      Eigen::Vector4f min_pt (0.0f, 0.0f, -20.0f, 1);
+      Eigen::Vector4f max_pt (7.7f, 21.341f, 20.0f, 1);
+      box_filter.setMin (min_pt);
+      box_filter.setMax (max_pt);
+      box_filter.setTransform(pcl::getTransformation(-5.0f, 8.4f, 0.0f, 0.0f, 0.0f, -41.9872 * M_PI / 180.0));
+      box_filter.filter(indices2);
+      box_filter.filter(*calib_cloud);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughBetter, *calib_cloud);
+    }
     break;
   }
   std::cout << "====================" << std::endl;
@@ -153,17 +175,14 @@ int main () {
 
     if (box_filtering){
       pcl::CropBox<pcl::PointXYZI> box_filter;
-      std::vector<int> indices;
+      std::vector<int> indices2;
       box_filter.setInputCloud(passThroughBetter);
       Eigen::Vector4f min_pt (0.0f, 0.0f, -20.0f, 1);
-      Eigen::Vector4f max_pt (8.0f, 21.341f, 20.0f, 1);
+      Eigen::Vector4f max_pt (7.7f, 21.341f, 20.0f, 1);
       box_filter.setMin (min_pt);
       box_filter.setMax (max_pt);
       box_filter.setTransform(pcl::getTransformation(-5.0f, 8.4f, 0.0f, 0.0f, 0.0f, -41.9872 * M_PI / 180.0));
-      // box_filter.setNegative(true);
-      // box_filter.setMin(Eigen::Vector4f(0.0, 18.35));
-      // box_filter.setMax(Eigen::Vector4f(9.88, -2.97));
-      box_filter.filter(indices);
+      box_filter.filter(indices2);
       box_filter.filter(*boxBetter);
     }
     else {
@@ -184,14 +203,5 @@ int main () {
     viewer->updatePointCloud<pcl::PointXYZI>(bgBetter, "sample cloud");
     viewer->spinOnce(50);
   }
-  // std::cout << "Loaded "
-  //           << cloud->width * cloud->height
-  //           << " data points from test_pcd.pcd with the following fields: "
-  //           << std::endl;
-  // for (const auto& point: *cloud2)
-  //   std::cout << "    " << point.x
-  //             << " "    << point.y
-  //             << " "    << point.z
-  //             << " "    << point.intensity << std::endl;
   return (0);
 }
