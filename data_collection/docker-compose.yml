@@ -5,7 +5,7 @@ services:
                 hostname: 'docker_roscore_master'
                 container_name: 'docker_roscore_master'
                 volumes:
-                        - sharedstorage:/storage
+                        - sharedstorage:/sharedstorage
         lidar-sdk-node:
                 build: ./lidar_sdk_node
                 hostname: 'docker_lidar_sdk_node'
