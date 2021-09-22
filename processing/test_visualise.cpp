@@ -18,6 +18,9 @@
 
 #include <pcl/features/normal_3d.h>
 
+#include <archive.h> 
+#include <archive_entry.h>
+
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
@@ -60,12 +63,11 @@ int main () {
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
-  std::vector<boost::filesystem::path> dir_files;
-  std::copy(boost::filesystem::directory_iterator("westmead_pcd"), boost::filesystem::directory_iterator(), std::back_inserter(dir_files));
-  std::sort(dir_files.begin(), dir_files.end());
+
   std::vector<boost::filesystem::path> calib_files;
   std::copy(boost::filesystem::directory_iterator("westmead_pcd/calibration"), boost::filesystem::directory_iterator(), std::back_inserter(calib_files));
   std::sort(calib_files.begin(), calib_files.end());
+
   // First do calibration - right now just break after reading first calibration file
   for (const boost::filesystem::path & filename : calib_files) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -128,6 +130,43 @@ int main () {
     break;
   }
   std::cout << "====================" << std::endl;
+
+  // Open test data archive
+  // How to read file within archives: https://stackoverflow.com/questions/31500340/how-to-read-file-within-archives/31500763
+  struct archive *a;
+  struct archive_entry *a_entry;
+  int r;
+
+  // Support opening gzipped tar archive
+  a = archive_read_new();
+  archive_read_support_filter_gzip(a);
+  archive_read_support_format_tar(a);
+  r = archive_read_open_filename(a, "westmead_pcd/lidar0.pcd.gz", 10240);
+  if (r != ARCHIVE_OK){
+    return 1;
+  }
+  while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
+    auto file_size = archive_entry_size(a_entry);
+    auto buffer = new char[file_size];
+    std::cout << "libarchive: " << archive_entry_pathname(a_entry) << std::endl;
+
+    auto read_result = archive_read_data(a, buffer, file_size);
+    if (read_result != ARCHIVE_OK) {
+      std::cout << "after1.1" << std::endl;
+      return 1;
+    }
+    // std::cout << buffer << std::endl;
+    std::cout << "after" << std::endl;
+    break;
+  }
+  r = archive_read_free(a);
+  if (r != ARCHIVE_OK) {
+    return 1;
+  }
+  return 0;
+
+
+  std::vector<boost::filesystem::path> dir_files;
 
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud);
