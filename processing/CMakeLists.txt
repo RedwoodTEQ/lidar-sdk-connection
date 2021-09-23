@@ -10,5 +10,11 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+find_package(LibArchive 3.2.2 REQUIRED)
+link_directories(${LibArchive_INCLUDE_DIRS})
+
+
 add_executable (test_visualise test_visualise.cpp)
-target_link_libraries (test_visualise ${PCL_LIBRARIES})
+
+
+target_link_libraries (test_visualise ${PCL_LIBRARIES} ${LibArchive_LIBRARIES})
