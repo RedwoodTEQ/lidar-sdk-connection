@@ -9,6 +9,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/interprocess/streams/bufferstream.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
@@ -69,30 +70,28 @@ int main () {
   double filter_y_min = -12.5;
   double filter_y_max = 12.5;
   bool bg_filtering = true;
-  bool pass_through_filtering = false;
+  bool pass_through_filtering = true;
   bool box_filtering = true;
+  bool enable_clustering = true;
 
-  pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
-
-  std::vector<boost::filesystem::path> calib_files;
-  std::copy(boost::filesystem::directory_iterator("westmead_pcd/calibration"), boost::filesystem::directory_iterator(), std::back_inserter(calib_files));
-  std::sort(calib_files.begin(), calib_files.end());
-
-  // First do calibration - right now just break after reading first calibration file
-  for (const boost::filesystem::path & filename : calib_files) {
+  struct archive *calib_a;
+  struct archive_entry *calib_a_entry;
+  int calib_r;
+  calib_a = archive_read_new();
+  archive_read_support_filter_gzip(calib_a);
+  archive_read_support_format_tar(calib_a);
+  calib_r = archive_read_open_filename(calib_a, "westmead_pcd/lidar1.calibration.pcd.gz", 1036288);
+  if (calib_r != ARCHIVE_OK) {
+    return 1;
+  }
+  while (archive_read_next_header(calib_a, &calib_a_entry) == ARCHIVE_OK) {
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughIn (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr bgBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
-
-    if (pcl::io::loadPCDFile<pcl::PointXYZI> (filename.string(), *cloud) == -1) {
-      PCL_ERROR ("Couldn't read pcd file \n");
-      return (-1);
-    }
-    std::cout << filename.string() << std::endl;
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
@@ -140,7 +139,8 @@ int main () {
     }
     break;
   }
-  std::cout << "====================" << std::endl;
+
+  pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
 
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud);
@@ -156,16 +156,16 @@ int main () {
   struct archive *a;
   struct archive_entry *a_entry;
   int r;
-
   // Support opening gzipped tar archive
   a = archive_read_new();
   archive_read_support_filter_gzip(a);
   archive_read_support_format_tar(a);
-  r = archive_read_open_filename(a, "westmead_pcd/lidar0.pcd.gz", 1036288);
+  r = archive_read_open_filename(a, "westmead_pcd/lidar1.pcd.gz", 1036288);
   if (r != ARCHIVE_OK){
     return 1;
   }
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
+    pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughIn (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
@@ -174,22 +174,121 @@ int main () {
     pcl::PointCloud<pcl::PointXYZI>::Ptr clusterBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     const auto fsize = archive_entry_size(a_entry);
-    std::cout << fsize << std::endl;
     auto buffer = new char[fsize];
-    std::cout << "libarchive: " << archive_entry_pathname(a_entry) << std::endl;
     auto read_result = archive_read_data(a, buffer, fsize);
 
     // Ensure number of bytes read from the current pcd file in archive matches its actual size
     if (read_result != fsize) {
       return 1;
     }
-
     // Convert char array to istream
     membuf sbuf(buffer, buffer + fsize);
+    membuf sbuf2(buffer, buffer + fsize);
     std::istream dataStream(&sbuf);
-    std::cout << dataStream.rdbuf();
+    std::istream dataStream2(&sbuf2);
+    pcl::PCDReader pcd_reader;
+    auto test_eigenvector = Eigen::Vector4f();
+    auto test_eigenquaternion = Eigen::Quaternionf::Identity();
+    auto offset = 0u;
+    auto data_type = 0;
+    auto pcd_version = 0;
+    pcd_reader.readHeader(dataStream, *rawIn, test_eigenvector, test_eigenquaternion, pcd_version, data_type, offset);
+    for (auto i = 0; i < 11; i++) {
+      std::string dontcare;
+      std::getline(dataStream2, dontcare);
+    }
+    pcd_reader.readBodyASCII(dataStream2, *rawIn, pcd_version);
+    pcl::fromPCLPointCloud2(*rawIn, *cloud);
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
-    break;
+    if (pass_through_filtering){
+      pcl::PassThrough<pcl::PointXYZI> x_filter; 
+      x_filter.setInputCloud(passThroughIn);
+      x_filter.setFilterFieldName("x");
+      x_filter.setFilterLimits(filter_x_min, filter_x_max);
+      x_filter.filter(*passThroughBetter);
+
+      passThroughIn->clear();
+
+      pcl::PassThrough<pcl::PointXYZI> z_filter;
+      z_filter.setInputCloud(passThroughBetter);
+      z_filter.setFilterFieldName("z");
+      z_filter.setFilterLimits(filter_z_min, filter_z_max);
+      z_filter.filter(*passThroughIn);
+
+      passThroughBetter->clear();
+
+      pcl::PassThrough<pcl::PointXYZI> y_filter;
+      z_filter.setInputCloud(passThroughIn);
+      z_filter.setFilterFieldName("y");
+      z_filter.setFilterLimits(filter_y_min, filter_y_max);
+      z_filter.filter(*passThroughBetter);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughIn, *passThroughBetter);
+    }
+
+    if (box_filtering){
+      pcl::CropBox<pcl::PointXYZI> box_filter;
+      std::vector<int> indices2;
+      box_filter.setInputCloud(passThroughBetter);
+      Eigen::Vector4f min_pt (0.0f, 0.0f, -20.0f, 1);
+      Eigen::Vector4f max_pt (7.7f, 21.341f, 20.0f, 1);
+      box_filter.setMin (min_pt);
+      box_filter.setMax (max_pt);
+      box_filter.setTransform(pcl::getTransformation(-5.0f, 8.4f, 0.0f, 0.0f, 0.0f, -41.9872 * M_PI / 180.0));
+      box_filter.filter(indices2);
+      box_filter.filter(*boxBetter);
+    }
+    else {
+      pcl::copyPointCloud(*passThroughBetter, *boxBetter);
+    }
+    
+    if (bg_filtering) {
+      pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
+      difference_segmenter.setInputCloud(boxBetter);
+      difference_segmenter.setTargetCloud(calib_cloud);
+      difference_segmenter.setDistanceThreshold(0.5);
+      difference_segmenter.segment(*bgBetter);  
+    } 
+    else {
+      pcl::copyPointCloud(*boxBetter, *bgBetter);
+    }
+    std::cout << "Points in frame: " << bgBetter->size() << std::endl;
+    // // Clustering test
+
+    if (bgBetter->size() > 0 && enable_clustering){
+      pcl::PointCloud<pcl::PointXYZINormal>::Ptr bgBetter_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
+      pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
+      pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters);
+      pcl::copyPointCloud(*bgBetter, *bgBetter_with_normals);
+      pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
+      ne.setInputCloud(bgBetter);
+      ne.setSearchMethod(search_tree);
+      ne.setRadiusSearch(1.0);
+      ne.compute(*bgBetter_with_normals);
+      pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
+      cec.setInputCloud(bgBetter_with_normals);
+      cec.setConditionFunction(&customRegionGrowing);
+      cec.setClusterTolerance(1.0);
+      cec.setMinClusterSize(50);
+      cec.segment(*clusters);
+
+      for (int i = 0; i < clusters->size (); ++i)
+      {
+        int label = rand () % 8;
+        for (int j = 0; j < (*clusters)[i].indices.size (); ++j)
+          (*bgBetter)[(*clusters)[i].indices[j]].intensity = label;
+      }
+      std::cout << clusters->size() << " vehicles in frame" << std::endl;
+      std::cout << "==================" << std::endl;
+    } else {
+      std::cout << "0 vehicles in frame" << std::endl;
+    }
+    
+    viewer->updatePointCloud<pcl::PointXYZI>(bgBetter, "sample cloud");
+    viewer->spinOnce(50);
   }
   return 0;
 }

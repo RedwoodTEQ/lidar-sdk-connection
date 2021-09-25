@@ -11,4 +11,4 @@ i=0
 while -f "lidar${i}.pcd.gz"; do
         i += 1
 done
-tar -zcvf lidar${i}.pcd.gz pcd_out/
+tar -zcvf lidar${i}.pcd.gz pcd_out/*.pcd
