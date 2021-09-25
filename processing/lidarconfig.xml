@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<process-config name="Raw LiDAR data filter and processing">
+    <input name="mainIn">
+        <archiveOnly>true</archiveOnly>
+        <filePattern>
+            <directory>sharedstorage</directory>
+            <midfix/>
+            <format>pcd</format>
+        </filePattern>
+    </input>
+    <input name="calibrationIn">
+        <archiveOnly>true</archiveOnly>
+        <filePattern>
+            <directory>sharedstorage</directory>
+            <midfix>.calibration</midfix>
+            <format>pcd</format>
+        </filePattern>
+    </input>
+    <initialCameraParams>
+        <pos_x>-10</pos_x>
+        <pos_y>40</pos_y>
+        <pos_z>5</pos_z>
+        <view_x>30</view_x>
+        <view_y>-5</view_y>
+        <view_z>-2</view_z>
+        <up_x>-10</up_x>
+        <up_y>40</up_y>
+        <up_z>100</up_z>
+    </initialCameraParams>
+    <passThroughFilter>
+        <enabled>true</enabled>
+        <filter_x_min>0.0</filter_x_min>
+        <filter_x_max>15</filter_x_max>
+        <filter_z_min>-1</filter_z_min>
+        <filter_z_max>3</filter_z_max>
+        <filter_y_min>-12.5</filter_y_min>
+        <filter_y_max>12.5</filter_y_max>
+    </passThroughFilter>
+    <backgroundFilter>
+        <enabled>true</enabled>
+    </backgroundFilter>
+</process-config>
+<!--
+vim:tabstop=4:noet:softabstop=4:shiftwidth=4
+-->

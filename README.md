@@ -31,10 +31,7 @@
 
 ### Data Decoding/Extraction after collection
 #### Notes:
-* Decoding bag files into plain text format is extremely space inefficient:
-A bag file containing point cloud data typically consumes 300-400MB of disk space for every 30 seconds of data collection whilst the plain text format of the same data will typically consume 4x as much disk space (i.e. 1.2GB - 1.6GB). As such, it is would probably be best to process the data directly from the bag file (e.g. through Python or C++ API) rather than decode it into plain text before processing.
-* I am investigating the use of the /rslidar_packets topic which appears to be a lot more space efficient than the /rslidar_points topic - the data processing may be updated in the future to use the packets topic instead.
-* .bag files are read from the /storage volume and the output will be sent to the /output volume. The files stored on these volumes will persist even outside of the lifetime of the container and can be read by other containers.
+* The data collection process will collect the raw LiDAR data into .bag files which are then archived and compressed as the final step of collection into a .pcd.gz archive.
 #### Prerequisites:
 * Docker daemon is running and the 'sharedstorage' docker volume is present and has been populated with one or more .bag files with /rslidar_points data.
 * If there are no .bag files to process, this process will not do anything.

@@ -1,3 +1,0 @@
-/home/william/lidar-sdk-connection/processing/CMakeFiles/rebuild_cache.dir
-/home/william/lidar-sdk-connection/processing/CMakeFiles/test_visualise.dir
-/home/william/lidar-sdk-connection/processing/CMakeFiles/edit_cache.dir
