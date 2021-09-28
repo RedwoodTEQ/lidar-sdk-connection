@@ -1,5 +1,7 @@
 *.pcd
 processing/build/
+processing/test.txt
+.vscode/
 # Prerequisites
 *.d
 
