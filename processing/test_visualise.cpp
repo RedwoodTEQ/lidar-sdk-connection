@@ -26,6 +26,8 @@
 #include <archive.h> 
 #include <archive_entry.h>
 
+#include "tinyxml2/tinyxml2.h"
+
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
@@ -37,7 +39,36 @@ struct membuf : std::streambuf
     }
 };
 
-pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+typedef struct _camera_params {
+  double pos_x;
+  double pos_y;
+  double pos_z;
+  double view_x;
+  double view_y;
+  double view_z;
+  double up_x;
+  double up_y;
+  double up_z;
+} CameraParams, *CameraParamsPtr;
+
+
+
+struct PassThroughFilterParams {
+  bool enabled;
+  double filter_x_min;
+  double filter_x_max;
+  double filter_z_min;
+  double filter_z_max;
+  double filter_y_min;
+  double filter_y_max;
+};
+
+struct ParameterConfiguration {
+  CameraParams              camera_params;
+  PassThroughFilterParams   passthrough_params;
+};
+
+pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor (0, 0, 0);
@@ -45,16 +76,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
     viewer->addCoordinateSystem (1.0);
     viewer->initCameraParameters ();
-    auto pos_x = -10;
-    auto pos_y = 40;
-    auto pos_z = 5;
-    auto view_x = 30;
-    auto view_y = -5;
-    auto view_z = -2;
-    auto up_x = -10;
-    auto up_y = 40;
-    auto up_z = 100;
-    viewer->setCameraPosition(pos_x, pos_y, pos_z, view_x, view_y, view_z, up_x, up_y, up_z, 0);
+    viewer->setCameraPosition(icp.pos_x, icp.pos_y, icp.pos_z, icp.view_x, icp.view_y, icp.view_z, icp.up_x, icp.up_y, icp.up_z, 0);
     viewer->addLine(pcl::PointXYZ(0,18.35,0), pcl::PointXYZ(50,-24.15,0), 255, 0, 0, std::string("median_divider_line"), 0);
     viewer->addLine(pcl::PointXYZ(-5,18.75,0), pcl::PointXYZ(50,-29,0), 255, 0, 0, std::string("lane_2_3_divider_line"), 0);
     viewer->addLine(pcl::PointXYZ(-7,16.25,0), pcl::PointXYZ(50,-34,0), 255, 0, 0, std::string("lane_1_2_divider_line"), 0);
@@ -229,10 +251,30 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 }
 
 int main () {
+  // Load config
+  tinyxml2::XMLDocument doc;
+  doc.LoadFile("../lidarconfig.xml");
+  if (doc.ErrorID() != 0) {
+    std::cout << doc.ErrorID() << std::endl;
+    std::cerr << "Could not load configuration file lidarconfig.xml" << std::endl;
+    return 1;
+  }
+  std::cout << "Successfully loaded 'lidarconfig.xml'" << std::endl;
+  CameraParams icp = {};
+  tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
+  icpElement->FirstChildElement("pos_x")->QueryDoubleText(&icp.pos_x);
+  icpElement->FirstChildElement("pos_y")->QueryDoubleText(&icp.pos_y);
+  icpElement->FirstChildElement("pos_z")->QueryDoubleText(&icp.pos_z);
+  icpElement->FirstChildElement("view_x")->QueryDoubleText(&icp.view_x);
+  icpElement->FirstChildElement("view_y")->QueryDoubleText(&icp.view_y);
+  icpElement->FirstChildElement("view_z")->QueryDoubleText(&icp.view_z);
+  icpElement->FirstChildElement("up_x")->QueryDoubleText(&icp.up_x);
+  icpElement->FirstChildElement("up_y")->QueryDoubleText(&icp.up_y);
+  icpElement->FirstChildElement("up_z")->QueryDoubleText(&icp.up_z);
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::visualization::PCLVisualizer::Ptr viewer;
-  viewer = mapping_vis(display_cloud);
+  viewer = mapping_vis(display_cloud, icp);
   inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer);
   inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer);
   return 0;

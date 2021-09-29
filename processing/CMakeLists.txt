@@ -15,8 +15,9 @@ add_definitions(${PCL_DEFINITIONS})
 find_package(LibArchive 3.2.2 REQUIRED)
 link_directories(${LibArchive_INCLUDE_DIRS})
 
+add_library(tinyxml2 tinyxml2/tinyxml2.h tinyxml2/tinyxml2.cpp)
 
 add_executable (test_visualise test_visualise.cpp)
 
 
-target_link_libraries (test_visualise Eigen3::Eigen ${LibArchive_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries (test_visualise Eigen3::Eigen ${LibArchive_LIBRARIES} ${PCL_LIBRARIES} tinyxml2)
