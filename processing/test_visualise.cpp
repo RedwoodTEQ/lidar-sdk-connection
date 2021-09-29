@@ -26,6 +26,8 @@
 #include <archive.h> 
 #include <archive_entry.h>
 
+#include "tinyxml2/tinyxml2.h"
+
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
@@ -37,7 +39,33 @@ struct membuf : std::streambuf
     }
 };
 
-pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+typedef struct _camera_params {
+  double pos_x;
+  double pos_y;
+  double pos_z;
+  double view_x;
+  double view_y;
+  double view_z;
+  double up_x;
+  double up_y;
+  double up_z;
+} CameraParams, *CameraParamsPtr;
+
+typedef struct _pass_through_filter_params {
+  bool enabled;
+  double filter_x_min;
+  double filter_x_max;
+  double filter_z_min;
+  double filter_z_max;
+  double filter_y_min;
+  double filter_y_max;
+} PassThroughFilterParams, *PassThroughFilterParamsPtr;
+
+typedef struct _parameter_configuration {
+  PassThroughFilterParams   ptfp;
+} ParameterConfiguration, *ParameterConfigurationPtr;
+
+pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor (0, 0, 0);
@@ -45,16 +73,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
     viewer->addCoordinateSystem (1.0);
     viewer->initCameraParameters ();
-    auto pos_x = -10;
-    auto pos_y = 40;
-    auto pos_z = 5;
-    auto view_x = 30;
-    auto view_y = -5;
-    auto view_z = -2;
-    auto up_x = -10;
-    auto up_y = 40;
-    auto up_z = 100;
-    viewer->setCameraPosition(pos_x, pos_y, pos_z, view_x, view_y, view_z, up_x, up_y, up_z, 0);
+    viewer->setCameraPosition(icp.pos_x, icp.pos_y, icp.pos_z, icp.view_x, icp.view_y, icp.view_z, icp.up_x, icp.up_y, icp.up_z, 0);
     viewer->addLine(pcl::PointXYZ(0,18.35,0), pcl::PointXYZ(50,-24.15,0), 255, 0, 0, std::string("median_divider_line"), 0);
     viewer->addLine(pcl::PointXYZ(-5,18.75,0), pcl::PointXYZ(50,-29,0), 255, 0, 0, std::string("lane_2_3_divider_line"), 0);
     viewer->addLine(pcl::PointXYZ(-7,16.25,0), pcl::PointXYZ(50,-34,0), 255, 0, 0, std::string("lane_1_2_divider_line"), 0);
@@ -68,15 +87,8 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
   return true;
 }
 
-void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v) {
-  double filter_x_min = 0.0;
-  double filter_x_max = 15;
-  double filter_z_min = -1;
-  double filter_z_max = 3;
-  double filter_y_min = -12.5;
-  double filter_y_max = 12.5;
+void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon) {
   bool bg_filtering = true;
-  bool pass_through_filtering = true;
   bool box_filtering = true;
   bool enable_clustering = true;
 
@@ -121,6 +133,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     auto data_type = 0;
     auto pcd_version = 0;
     pcd_reader.readHeader(dataStream, *rawIn, test_eigenvector, test_eigenquaternion, pcd_version, data_type, offset);
+    // Skip 11 lines of header - this is required because readHeader appears to seek 1 line too many and will miss the data point
     for (auto i = 0; i < 11; i++) {
       std::string dontcare;
       std::getline(dataStream2, dontcare);
@@ -131,11 +144,11 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
-    if (pass_through_filtering){
+    if (paracon.ptfp.enabled){
       pcl::PassThrough<pcl::PointXYZI> x_filter; 
       x_filter.setInputCloud(passThroughIn);
       x_filter.setFilterFieldName("x");
-      x_filter.setFilterLimits(filter_x_min, filter_x_max);
+      x_filter.setFilterLimits(paracon.ptfp.filter_x_min, paracon.ptfp.filter_x_max);
       x_filter.filter(*passThroughBetter);
 
       passThroughIn->clear();
@@ -143,7 +156,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::PassThrough<pcl::PointXYZI> z_filter;
       z_filter.setInputCloud(passThroughBetter);
       z_filter.setFilterFieldName("z");
-      z_filter.setFilterLimits(filter_z_min, filter_z_max);
+      z_filter.setFilterLimits(paracon.ptfp.filter_z_min, paracon.ptfp.filter_z_max);
       z_filter.filter(*passThroughIn);
 
       passThroughBetter->clear();
@@ -151,7 +164,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::PassThrough<pcl::PointXYZI> y_filter;
       z_filter.setInputCloud(passThroughIn);
       z_filter.setFilterFieldName("y");
-      z_filter.setFilterLimits(filter_y_min, filter_y_max);
+      z_filter.setFilterLimits(paracon.ptfp.filter_y_min, paracon.ptfp.filter_y_max);
       z_filter.filter(*passThroughBetter);
     }
     else {
@@ -229,11 +242,48 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 }
 
 int main () {
+  // Load config
+  tinyxml2::XMLDocument doc;
+  doc.LoadFile("../lidarconfig.xml");
+  if (doc.ErrorID() != 0) {
+    std::cout << doc.ErrorID() << std::endl;
+    std::cerr << "Could not load configuration file lidarconfig.xml" << std::endl;
+    return 1;
+  }
+  std::cout << "Successfully loaded 'lidarconfig.xml'" << std::endl;
+  ParameterConfiguration paracon = {};
+  CameraParams icp = {};
+  PassThroughFilterParams ptfp = {};
+
+  // Read in initial camera params
+  tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
+  icpElement->FirstChildElement("pos_x")->QueryDoubleText(&icp.pos_x);
+  icpElement->FirstChildElement("pos_y")->QueryDoubleText(&icp.pos_y);
+  icpElement->FirstChildElement("pos_z")->QueryDoubleText(&icp.pos_z);
+  icpElement->FirstChildElement("view_x")->QueryDoubleText(&icp.view_x);
+  icpElement->FirstChildElement("view_y")->QueryDoubleText(&icp.view_y);
+  icpElement->FirstChildElement("view_z")->QueryDoubleText(&icp.view_z);
+  icpElement->FirstChildElement("up_x")->QueryDoubleText(&icp.up_x);
+  icpElement->FirstChildElement("up_y")->QueryDoubleText(&icp.up_y);
+  icpElement->FirstChildElement("up_z")->QueryDoubleText(&icp.up_z);
+
+  // Read in pass through filter params
+  tinyxml2::XMLElement* ptfpElement = doc.FirstChildElement()->FirstChildElement("passThroughFilter");
+  ptfpElement->FirstChildElement("enabled")->QueryBoolText(&ptfp.enabled);
+  ptfpElement->FirstChildElement("filter_x_min")->QueryDoubleText(&ptfp.filter_x_min);
+  ptfpElement->FirstChildElement("filter_x_max")->QueryDoubleText(&ptfp.filter_x_max);
+  ptfpElement->FirstChildElement("filter_y_min")->QueryDoubleText(&ptfp.filter_y_min);
+  ptfpElement->FirstChildElement("filter_y_max")->QueryDoubleText(&ptfp.filter_y_max);
+  ptfpElement->FirstChildElement("filter_z_min")->QueryDoubleText(&ptfp.filter_z_min);
+  ptfpElement->FirstChildElement("filter_z_max")->QueryDoubleText(&ptfp.filter_z_max);
+
+  paracon.ptfp = ptfp;
+
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::visualization::PCLVisualizer::Ptr viewer;
-  viewer = mapping_vis(display_cloud);
-  inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer);
-  inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer);
+  viewer = mapping_vis(display_cloud, icp);
+  inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
   return 0;
 }
