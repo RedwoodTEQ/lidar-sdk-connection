@@ -51,9 +51,7 @@ typedef struct _camera_params {
   double up_z;
 } CameraParams, *CameraParamsPtr;
 
-
-
-struct PassThroughFilterParams {
+typedef struct _pass_through_filter_params {
   bool enabled;
   double filter_x_min;
   double filter_x_max;
@@ -61,12 +59,11 @@ struct PassThroughFilterParams {
   double filter_z_max;
   double filter_y_min;
   double filter_y_max;
-};
+} PassThroughFilterParams, *PassThroughFilterParamsPtr;
 
-struct ParameterConfiguration {
-  CameraParams              camera_params;
-  PassThroughFilterParams   passthrough_params;
-};
+typedef struct _parameter_configuration {
+  PassThroughFilterParams   ptfp;
+} ParameterConfiguration, *ParameterConfigurationPtr;
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
 {
@@ -90,15 +87,8 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
   return true;
 }
 
-void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v) {
-  double filter_x_min = 0.0;
-  double filter_x_max = 15;
-  double filter_z_min = -1;
-  double filter_z_max = 3;
-  double filter_y_min = -12.5;
-  double filter_y_max = 12.5;
+void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon) {
   bool bg_filtering = true;
-  bool pass_through_filtering = true;
   bool box_filtering = true;
   bool enable_clustering = true;
 
@@ -143,6 +133,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     auto data_type = 0;
     auto pcd_version = 0;
     pcd_reader.readHeader(dataStream, *rawIn, test_eigenvector, test_eigenquaternion, pcd_version, data_type, offset);
+    // Skip 11 lines of header - this is required because readHeader appears to seek 1 line too many and will miss the data point
     for (auto i = 0; i < 11; i++) {
       std::string dontcare;
       std::getline(dataStream2, dontcare);
@@ -153,11 +144,11 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*cloud, *passThroughIn, indices); // this shouldn't affect anything but doing it anyway as it will make it easier to process data later
 
-    if (pass_through_filtering){
+    if (paracon.ptfp.enabled){
       pcl::PassThrough<pcl::PointXYZI> x_filter; 
       x_filter.setInputCloud(passThroughIn);
       x_filter.setFilterFieldName("x");
-      x_filter.setFilterLimits(filter_x_min, filter_x_max);
+      x_filter.setFilterLimits(paracon.ptfp.filter_x_min, paracon.ptfp.filter_x_max);
       x_filter.filter(*passThroughBetter);
 
       passThroughIn->clear();
@@ -165,7 +156,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::PassThrough<pcl::PointXYZI> z_filter;
       z_filter.setInputCloud(passThroughBetter);
       z_filter.setFilterFieldName("z");
-      z_filter.setFilterLimits(filter_z_min, filter_z_max);
+      z_filter.setFilterLimits(paracon.ptfp.filter_z_min, paracon.ptfp.filter_z_max);
       z_filter.filter(*passThroughIn);
 
       passThroughBetter->clear();
@@ -173,7 +164,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::PassThrough<pcl::PointXYZI> y_filter;
       z_filter.setInputCloud(passThroughIn);
       z_filter.setFilterFieldName("y");
-      z_filter.setFilterLimits(filter_y_min, filter_y_max);
+      z_filter.setFilterLimits(paracon.ptfp.filter_y_min, paracon.ptfp.filter_y_max);
       z_filter.filter(*passThroughBetter);
     }
     else {
@@ -260,7 +251,11 @@ int main () {
     return 1;
   }
   std::cout << "Successfully loaded 'lidarconfig.xml'" << std::endl;
+  ParameterConfiguration paracon = {};
   CameraParams icp = {};
+  PassThroughFilterParams ptfp = {};
+
+  // Read in initial camera params
   tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
   icpElement->FirstChildElement("pos_x")->QueryDoubleText(&icp.pos_x);
   icpElement->FirstChildElement("pos_y")->QueryDoubleText(&icp.pos_y);
@@ -271,11 +266,24 @@ int main () {
   icpElement->FirstChildElement("up_x")->QueryDoubleText(&icp.up_x);
   icpElement->FirstChildElement("up_y")->QueryDoubleText(&icp.up_y);
   icpElement->FirstChildElement("up_z")->QueryDoubleText(&icp.up_z);
+
+  // Read in pass through filter params
+  tinyxml2::XMLElement* ptfpElement = doc.FirstChildElement()->FirstChildElement("passThroughFilter");
+  ptfpElement->FirstChildElement("enabled")->QueryBoolText(&ptfp.enabled);
+  ptfpElement->FirstChildElement("filter_x_min")->QueryDoubleText(&ptfp.filter_x_min);
+  ptfpElement->FirstChildElement("filter_x_max")->QueryDoubleText(&ptfp.filter_x_max);
+  ptfpElement->FirstChildElement("filter_y_min")->QueryDoubleText(&ptfp.filter_y_min);
+  ptfpElement->FirstChildElement("filter_y_max")->QueryDoubleText(&ptfp.filter_y_max);
+  ptfpElement->FirstChildElement("filter_z_min")->QueryDoubleText(&ptfp.filter_z_min);
+  ptfpElement->FirstChildElement("filter_z_max")->QueryDoubleText(&ptfp.filter_z_max);
+
+  paracon.ptfp = ptfp;
+
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud, icp);
-  inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer);
-  inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer);
+  inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
   return 0;
 }
