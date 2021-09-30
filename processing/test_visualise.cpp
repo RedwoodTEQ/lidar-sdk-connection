@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <istream>
 #include <streambuf>
@@ -11,6 +12,7 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <pcl/common/distances.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
@@ -65,6 +67,73 @@ typedef struct _parameter_configuration {
   PassThroughFilterParams   ptfp;
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
+typedef struct _bounding_box {
+  pcl::PointXYZI closest;
+  pcl::PointXYZI furthest;
+  double delta_x;
+  double delta_y;
+  double delta_z;
+} BoundingBox, *BoundingBoxPtr;
+
+BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
+  BoundingBox bounding_box = {};
+  pcl::PointXYZ baseline = pcl::PointXYZ(-5.98, 11.31, 0);
+  pcl::PointXYZ baseline2 = pcl::PointXYZ(0, 20, 0);
+  pcl::PointXYZ baseline3 = pcl::PointXYZ(100, 0, 0);
+  auto min_height = 100.0;
+  auto max_height = -100.0;
+  auto min_dist = 1000.0;
+  auto min_dist2 = 1000.0;
+  auto min_dist3 = 1000.0;
+  auto closest_x = 0.0;
+  auto closest_y = 0.0;
+  auto closest_z = 0.0;
+  auto leftmost_x = 0.0;
+  auto leftmost_y = 0.0;
+  auto leftmost_z = 0.0;
+  auto farrightmost_x = 0.0;
+  auto farrightmost_y = 0.0;
+  auto farrightmost_z = 0.0;
+  for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = cluster_cloud->begin(); it != cluster_cloud->end(); ++it ) {
+    auto current = pcl::PointXYZ(it->x, it->y, it->z);
+    auto dist = pcl::euclideanDistance(baseline, current);
+    auto dist2 = pcl::euclideanDistance(baseline2, current);
+    auto dist3 = pcl::euclideanDistance(baseline3, current);
+    if (dist < min_dist) {
+      min_dist = dist;
+      closest_x = it->x;
+      closest_y = it->y;
+      closest_z = it->z;
+    }
+    if (dist2 < min_dist2) {
+      min_dist2 = dist2;
+      leftmost_x = it->x;
+      leftmost_y = it->y;
+      leftmost_z = it->z;
+    }
+    if (dist3 < min_dist3) {
+      min_dist3 = dist3;
+      farrightmost_x = it->x;
+      farrightmost_y = it->y;
+      farrightmost_z = it->z;
+    }
+    if (it->z > max_height) {
+      max_height = it->z;
+    }
+    if (it->z < min_height) {
+      min_height = it->z;
+    }
+  }
+  std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
+  std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
+  std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
+  auto vehicle_width = sqrt(pow((leftmost_x - closest_x),2) + pow((leftmost_y - closest_y),2));
+  auto vehicle_length = sqrt(pow((farrightmost_x - closest_x),2) + pow((farrightmost_y - closest_y),2));
+  auto vehicle_height = max_height - min_height;
+  std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
+  return bounding_box;
+}
+
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
@@ -83,6 +152,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     return (viewer);
 }
 
+// Dummy function - always return true
 bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINormal& b, float squared_d) {
   return true;
 }
@@ -138,7 +208,6 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       std::string dontcare;
       std::getline(dataStream2, dontcare);
     }
-    std::cout << "calibration: " << calibration << std::endl;
     pcd_reader.readBodyASCII(dataStream2, *rawIn, pcd_version);
     pcl::fromPCLPointCloud2(*rawIn, *cloud);
     std::vector<int> indices;
@@ -205,6 +274,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     else {
       pcl::copyPointCloud(*boxBetter, *displayCloud);
     }
+    std::cout << "==================" << std::endl;
     std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
@@ -222,14 +292,16 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       cec.setInputCloud(displayCloud_with_normals);
       cec.setConditionFunction(&customRegionGrowing);
       cec.setClusterTolerance(1.0);
-      cec.setMinClusterSize(50);
+      cec.setMinClusterSize(80);
       cec.segment(*clusters);
-
-      for (int i = 0; i < clusters->size (); ++i)
-      {
-      int label = rand () % 8;
-      for (int j = 0; j < (*clusters)[i].indices.size (); ++j)
-      (*displayCloud)[(*clusters)[i].indices[j]].intensity = label;
+      
+      std::cout << "Number of clusters: " << clusters->size() << std::endl;
+      for (int i = 0; i < clusters->size(); ++i) {
+        // std::cout << (*clusters)[i] << std::endl;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
+        BoundingBox bb = determineBoundingBox(extracted_cloud);
+        break;
       }
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
