@@ -65,6 +65,20 @@ typedef struct _parameter_configuration {
   PassThroughFilterParams   ptfp;
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
+typedef struct _bounding_box {
+  pcl::PointXYZI closest;
+  pcl::PointXYZI furthest;
+  double delta_x;
+  double delta_y;
+  double delta_z;
+} BoundingBox, *BoundingBoxPtr;
+
+BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud) {
+  BoundingBox bounding_box = {};
+  
+  return bounding_box;
+}
+
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
@@ -83,6 +97,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     return (viewer);
 }
 
+// Dummy function - always return true
 bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINormal& b, float squared_d) {
   return true;
 }
@@ -138,7 +153,6 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       std::string dontcare;
       std::getline(dataStream2, dontcare);
     }
-    std::cout << "calibration: " << calibration << std::endl;
     pcd_reader.readBodyASCII(dataStream2, *rawIn, pcd_version);
     pcl::fromPCLPointCloud2(*rawIn, *cloud);
     std::vector<int> indices;
@@ -205,6 +219,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     else {
       pcl::copyPointCloud(*boxBetter, *displayCloud);
     }
+    std::cout << "==================" << std::endl;
     std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
@@ -222,14 +237,16 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       cec.setInputCloud(displayCloud_with_normals);
       cec.setConditionFunction(&customRegionGrowing);
       cec.setClusterTolerance(1.0);
-      cec.setMinClusterSize(50);
+      cec.setMinClusterSize(80);
       cec.segment(*clusters);
-
-      for (int i = 0; i < clusters->size (); ++i)
-      {
-      int label = rand () % 8;
-      for (int j = 0; j < (*clusters)[i].indices.size (); ++j)
-      (*displayCloud)[(*clusters)[i].indices[j]].intensity = label;
+      
+      std::cout << "Number of clusters: " << clusters->size() << std::endl;
+      for (int i = 0; i < clusters->size(); ++i) {
+        // std::cout << (*clusters)[i] << std::endl;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
+        BoundingBox bb = determineBoundingBox(extracted_cloud);
+        break;
       }
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
