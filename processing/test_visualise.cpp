@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <istream>
 #include <streambuf>
@@ -11,6 +12,7 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <pcl/common/distances.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
@@ -73,9 +75,62 @@ typedef struct _bounding_box {
   double delta_z;
 } BoundingBox, *BoundingBoxPtr;
 
-BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud) {
+BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
   BoundingBox bounding_box = {};
-  
+  pcl::PointXYZ baseline = pcl::PointXYZ(-5.98, 11.31, 0);
+  pcl::PointXYZ baseline2 = pcl::PointXYZ(0, 20, 0);
+  pcl::PointXYZ baseline3 = pcl::PointXYZ(100, 0, 0);
+  auto min_height = 100.0;
+  auto max_height = -100.0;
+  auto min_dist = 1000.0;
+  auto min_dist2 = 1000.0;
+  auto min_dist3 = 1000.0;
+  auto closest_x = 0.0;
+  auto closest_y = 0.0;
+  auto closest_z = 0.0;
+  auto leftmost_x = 0.0;
+  auto leftmost_y = 0.0;
+  auto leftmost_z = 0.0;
+  auto farrightmost_x = 0.0;
+  auto farrightmost_y = 0.0;
+  auto farrightmost_z = 0.0;
+  for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = cluster_cloud->begin(); it != cluster_cloud->end(); ++it ) {
+    auto current = pcl::PointXYZ(it->x, it->y, it->z);
+    auto dist = pcl::euclideanDistance(baseline, current);
+    auto dist2 = pcl::euclideanDistance(baseline2, current);
+    auto dist3 = pcl::euclideanDistance(baseline3, current);
+    if (dist < min_dist) {
+      min_dist = dist;
+      closest_x = it->x;
+      closest_y = it->y;
+      closest_z = it->z;
+    }
+    if (dist2 < min_dist2) {
+      min_dist2 = dist2;
+      leftmost_x = it->x;
+      leftmost_y = it->y;
+      leftmost_z = it->z;
+    }
+    if (dist3 < min_dist3) {
+      min_dist3 = dist3;
+      farrightmost_x = it->x;
+      farrightmost_y = it->y;
+      farrightmost_z = it->z;
+    }
+    if (it->z > max_height) {
+      max_height = it->z;
+    }
+    if (it->z < min_height) {
+      min_height = it->z;
+    }
+  }
+  std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
+  std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
+  std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
+  auto vehicle_width = sqrt(pow((leftmost_x - closest_x),2) + pow((leftmost_y - closest_y),2));
+  auto vehicle_length = sqrt(pow((farrightmost_x - closest_x),2) + pow((farrightmost_y - closest_y),2));
+  auto vehicle_height = max_height - min_height;
+  std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
   return bounding_box;
 }
 
