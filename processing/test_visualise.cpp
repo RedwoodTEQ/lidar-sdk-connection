@@ -182,7 +182,6 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
 }
 
 void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon) {
-  bool bg_filtering = true;
   bool enable_clustering = true;
 
   struct archive *a;
@@ -292,11 +291,11 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         return;
       }
     }
-    if (bg_filtering) {
+    if (paracon.bgfp.enabled) {
       pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
       difference_segmenter.setInputCloud(boxBetter);
       difference_segmenter.setTargetCloud(target);
-      difference_segmenter.setDistanceThreshold(0.5);
+      difference_segmenter.setDistanceThreshold(paracon.bgfp.threshold);
       difference_segmenter.segment(*displayCloud);  
     } 
     else {
@@ -396,6 +395,11 @@ int main () {
   boxfpTransformElement->FirstChildElement("roll")->QueryFloatText(&boxfp.transform_roll);
   boxfpTransformElement->FirstChildElement("pitch")->QueryFloatText(&boxfp.transform_pitch);
   boxfpTransformElement->FirstChildElement("yaw")->QueryFloatText(&boxfp.transform_yaw);
+
+  // Read in background filtering params
+  tinyxml2::XMLElement* bgfpElement = doc.FirstChildElement()->FirstChildElement("backgroundFilter");
+  bgfpElement->FirstChildElement("enabled")->QueryBoolText(&bgfp.enabled);
+  bgfpElement->FirstChildElement("threshold")->QueryDoubleText(&bgfp.threshold);
 
   paracon.ptfp = ptfp;
   paracon.boxfp = boxfp;

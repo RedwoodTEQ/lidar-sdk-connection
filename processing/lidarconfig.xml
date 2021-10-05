@@ -59,7 +59,7 @@
     </boxFilter>
     <backgroundFilter>
         <enabled>true</enabled>
-        <targetDistanceThreshold>0.5</targetDistanceThreshold>
+        <threshold>0.5</threshold>
     </backgroundFilter>
 </process-config>
 <!--
