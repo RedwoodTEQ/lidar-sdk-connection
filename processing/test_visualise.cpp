@@ -63,8 +63,32 @@ typedef struct _pass_through_filter_params {
   double filter_y_max;
 } PassThroughFilterParams, *PassThroughFilterParamsPtr;
 
+typedef struct _box_filter_params {
+  bool enabled;
+  float min_x;
+  float min_y;
+  float min_z;
+  float max_x;
+  float max_y;
+  float max_z;
+  float transform_x;
+  float transform_y;
+  float transform_z;
+  float transform_roll;
+  float transform_pitch;
+  float transform_yaw;
+} BoxFilterParams, *BoxFilterParamsPtr;
+
+typedef struct _background_filter_params {
+  bool enabled;
+  double threshold;
+} BackgroundFilterParams, *BackgroundFilterParamsPtr;
+
+
 typedef struct _parameter_configuration {
   PassThroughFilterParams   ptfp;
+  BoxFilterParams boxfp;
+  BackgroundFilterParams bgfp;
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
 typedef struct _bounding_box {
@@ -159,7 +183,6 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
 
 void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon) {
   bool bg_filtering = true;
-  bool box_filtering = true;
   bool enable_clustering = true;
 
   struct archive *a;
@@ -203,7 +226,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     auto data_type = 0;
     auto pcd_version = 0;
     pcd_reader.readHeader(dataStream, *rawIn, test_eigenvector, test_eigenquaternion, pcd_version, data_type, offset);
-    // Skip 11 lines of header - this is required because readHeader appears to seek 1 line too many and will miss the data point
+    // Skip 11 lines of header - this is required because readHeader appears to seek 1 line too many and will miss the first data point
     for (auto i = 0; i < 11; i++) {
       std::string dontcare;
       std::getline(dataStream2, dontcare);
@@ -240,15 +263,20 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::copyPointCloud(*passThroughIn, *passThroughBetter);
     }
 
-    if (box_filtering){
+    if (paracon.boxfp.enabled){
       pcl::CropBox<pcl::PointXYZI> box_filter;
       std::vector<int> indices2;
       box_filter.setInputCloud(passThroughBetter);
-      Eigen::Vector4f min_pt (0.0f, 0.0f, -20.0f, 1);
-      Eigen::Vector4f max_pt (7.7f, 21.341f, 20.0f, 1);
+      Eigen::Vector4f min_pt (paracon.boxfp.min_x, paracon.boxfp.min_y, paracon.boxfp.min_z, 1);
+      Eigen::Vector4f max_pt (paracon.boxfp.max_x, paracon.boxfp.max_y, paracon.boxfp.max_z, 1);
       box_filter.setMin (min_pt);
       box_filter.setMax (max_pt);
-      box_filter.setTransform(pcl::getTransformation(-5.0f, 8.4f, 0.0f, 0.0f, 0.0f, -41.9872 * M_PI / 180.0));
+      box_filter.setTransform(pcl::getTransformation( paracon.boxfp.transform_x, 
+                                                      paracon.boxfp.transform_y, 
+                                                      paracon.boxfp.transform_z, 
+                                                      paracon.boxfp.transform_roll, 
+                                                      paracon.boxfp.transform_pitch, 
+                                                      paracon.boxfp.transform_yaw ));
       box_filter.filter(indices2);
       if (calibration) {
         box_filter.filter(*target);
@@ -297,7 +325,6 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       
       std::cout << "Number of clusters: " << clusters->size() << std::endl;
       for (int i = 0; i < clusters->size(); ++i) {
-        // std::cout << (*clusters)[i] << std::endl;
         pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
         BoundingBox bb = determineBoundingBox(extracted_cloud);
@@ -326,6 +353,8 @@ int main () {
   ParameterConfiguration paracon = {};
   CameraParams icp = {};
   PassThroughFilterParams ptfp = {};
+  BoxFilterParams boxfp = {};
+  BackgroundFilterParams bgfp = {};
 
   // Read in initial camera params
   tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
@@ -349,7 +378,28 @@ int main () {
   ptfpElement->FirstChildElement("filter_z_min")->QueryDoubleText(&ptfp.filter_z_min);
   ptfpElement->FirstChildElement("filter_z_max")->QueryDoubleText(&ptfp.filter_z_max);
 
+  // Read in box filtering params
+  tinyxml2::XMLElement* boxfpElement = doc.FirstChildElement()->FirstChildElement("boxFilter");
+  boxfpElement->FirstChildElement("enabled")->QueryBoolText(&boxfp.enabled);
+  tinyxml2::XMLElement* boxfpMinPointElement = boxfpElement->FirstChildElement("minPoint");
+  boxfpMinPointElement->FirstChildElement("x")->QueryFloatText(&boxfp.min_x);
+  boxfpMinPointElement->FirstChildElement("y")->QueryFloatText(&boxfp.min_y);
+  boxfpMinPointElement->FirstChildElement("z")->QueryFloatText(&boxfp.min_z);
+  tinyxml2::XMLElement* boxfpMaxPointElement = boxfpElement->FirstChildElement("maxPoint");
+  boxfpMaxPointElement->FirstChildElement("x")->QueryFloatText(&boxfp.max_x);
+  boxfpMaxPointElement->FirstChildElement("y")->QueryFloatText(&boxfp.max_y);
+  boxfpMaxPointElement->FirstChildElement("z")->QueryFloatText(&boxfp.max_z);
+  tinyxml2::XMLElement* boxfpTransformElement = boxfpElement->FirstChildElement("transformation");
+  boxfpTransformElement->FirstChildElement("x")->QueryFloatText(&boxfp.transform_x);
+  boxfpTransformElement->FirstChildElement("y")->QueryFloatText(&boxfp.transform_y);
+  boxfpTransformElement->FirstChildElement("z")->QueryFloatText(&boxfp.transform_z);
+  boxfpTransformElement->FirstChildElement("roll")->QueryFloatText(&boxfp.transform_roll);
+  boxfpTransformElement->FirstChildElement("pitch")->QueryFloatText(&boxfp.transform_pitch);
+  boxfpTransformElement->FirstChildElement("yaw")->QueryFloatText(&boxfp.transform_yaw);
+
   paracon.ptfp = ptfp;
+  paracon.boxfp = boxfp;
+  paracon.bgfp = bgfp;
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);

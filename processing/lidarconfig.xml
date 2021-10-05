@@ -36,8 +36,30 @@
         <filter_y_min>-12.5</filter_y_min>
         <filter_y_max>12.5</filter_y_max>
     </passThroughFilter>
+    <boxFilter>
+        <enabled>true</enabled>
+        <minPoint>
+            <x>0.0</x>
+            <y>0.0</y>
+            <z>-20.0</z>
+        </minPoint>
+        <maxPoint>
+            <x>7.7</x>
+            <y>21.34</y>
+            <z>20.0</z>
+        </maxPoint>
+        <transformation>
+            <x>-5.0</x>
+            <y>8.4</y>
+            <z>0.0</z>
+            <roll>0.0</roll>
+            <pitch>0.0</pitch>
+            <yaw>-0.7328</yaw>
+        </transformation>
+    </boxFilter>
     <backgroundFilter>
         <enabled>true</enabled>
+        <targetDistanceThreshold>0.5</targetDistanceThreshold>
     </backgroundFilter>
 </process-config>
 <!--
