@@ -17,44 +17,18 @@
         </filePattern>
     </input>
     <initialCameraParams>
-        <pos_x>-5</pos_x>
-        <pos_y>4.5</pos_y>
-        <pos_z>0</pos_z>
+        <pos_x>-10</pos_x>
+        <pos_y>40</pos_y>
+        <pos_z>5</pos_z>
         <view_x>30</view_x>
-        <view_y>-30</view_y>
-        <view_z>0</view_z>
+        <view_y>-5</view_y>
+        <view_z>-2</view_z>
         <up_x>-10</up_x>
-        <up_y>10.5</up_y>
-        <up_z>10</up_z>
+        <up_y>40</up_y>
+        <up_z>100</up_z>
     </initialCameraParams>
-    <drawLines>
-        <line>
-            <name>Median Divider</name>
-            <x1>11</x1>
-            <y1>-4</y1>
-            <z1>-2</z1>
-            <x2>14.5</x2>
-            <y2>-10</y2>
-            <z2>3</z2>
-            <r>255</r>
-            <g>0</g>
-            <b>0</b>
-        </line>
-        <line>
-            <name>Roadside Divider</name>
-            <x1>3</x1>
-            <y1>-10</y1>
-            <z1>-3</z1>
-            <x2>5</x2>
-            <y2>-15</y2>
-            <z2>3</z2>
-            <r>255</r>
-            <g>0</g>
-            <b>0</b>
-        </line>
-    </drawLines>
     <passThroughFilter>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
         <filter_x_min>0.0</filter_x_min>
         <filter_x_max>15</filter_x_max>
         <filter_z_min>-1</filter_z_min>
@@ -63,7 +37,7 @@
         <filter_y_max>12.5</filter_y_max>
     </passThroughFilter>
     <boxFilter>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
         <minPoint>
             <x>0.0</x>
             <y>0.0</y>

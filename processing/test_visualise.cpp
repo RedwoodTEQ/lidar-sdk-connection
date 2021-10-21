@@ -53,6 +53,19 @@ typedef struct _camera_params {
   double up_z;
 } CameraParams, *CameraParamsPtr;
 
+typedef struct _line_params {
+  std::string name;
+  double x1;
+  double y1;
+  double z1;
+  double x2;
+  double y2;
+  double z2;
+  double r;
+  double g;
+  double b;
+} LineParams, *LineParamsPtr;
+
 typedef struct _pass_through_filter_params {
   bool enabled;
   double filter_x_min;
@@ -158,7 +171,7 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   return bounding_box;
 }
 
-pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp)
+pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor (0, 0, 0);
@@ -167,12 +180,9 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     viewer->addCoordinateSystem (1.0);
     viewer->initCameraParameters ();
     viewer->setCameraPosition(icp.pos_x, icp.pos_y, icp.pos_z, icp.view_x, icp.view_y, icp.view_z, icp.up_x, icp.up_y, icp.up_z, 0);
-    viewer->addLine(pcl::PointXYZ(0,18.35,0), pcl::PointXYZ(50,-24.15,0), 255, 0, 0, std::string("median_divider_line"), 0);
-    viewer->addLine(pcl::PointXYZ(-5,18.75,0), pcl::PointXYZ(50,-29,0), 255, 0, 0, std::string("lane_2_3_divider_line"), 0);
-    viewer->addLine(pcl::PointXYZ(-7,16.25,0), pcl::PointXYZ(50,-34,0), 255, 0, 0, std::string("lane_1_2_divider_line"), 0);
-    viewer->addLine(pcl::PointXYZ(-9,14,0), pcl::PointXYZ(50,-39,0), 255, 0, 0, std::string("road_boundary_line"), 0);
-    viewer->addLine(pcl::PointXYZ(3.9,-10,0), pcl::PointXYZ(20.9,10,0), 0, 255, 0, std::string("far_cut_off_line"), 0);
-    viewer->addLine(pcl::PointXYZ(1.4025,20,0), pcl::PointXYZ(-15.5975,0,0), 0, 255, 0, std::string("close_cut_off_line"), 0);
+    for (auto it = lps->begin(); it != lps->end(); ++it) {
+      viewer->addLine(pcl::PointXYZ(it->x1, it->y1, it->z1), pcl::PointXYZ(it->x2, it->y2, it->z2), it->r, it->g, it->b, it->name);
+    }
     return (viewer);
 }
 
@@ -290,6 +300,9 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         pcl::copyPointCloud(*passThroughBetter, *target);
         return;
       }
+      else {
+        pcl::copyPointCloud(*passThroughBetter, *boxBetter);
+      }
     }
     if (paracon.bgfp.enabled) {
       pcl::SegmentDifferences<pcl::PointXYZI> difference_segmenter;
@@ -354,6 +367,7 @@ int main () {
   PassThroughFilterParams ptfp = {};
   BoxFilterParams boxfp = {};
   BackgroundFilterParams bgfp = {};
+  auto lines = new std::vector<LineParams>();
 
   // Read in initial camera params
   tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
@@ -366,6 +380,23 @@ int main () {
   icpElement->FirstChildElement("up_x")->QueryDoubleText(&icp.up_x);
   icpElement->FirstChildElement("up_y")->QueryDoubleText(&icp.up_y);
   icpElement->FirstChildElement("up_z")->QueryDoubleText(&icp.up_z);
+
+  // Read in lines
+  tinyxml2::XMLElement* drawLinesElement = doc.FirstChildElement()->FirstChildElement("drawLines");
+  for(tinyxml2::XMLElement* e = drawLinesElement->FirstChildElement("line"); e != NULL; e = e->NextSiblingElement("line")) {
+    LineParams lp = {};
+    lp.name = e->FirstChildElement("name")->GetText();
+    e->FirstChildElement("x1")->QueryDoubleText(&lp.x1);
+    e->FirstChildElement("y1")->QueryDoubleText(&lp.y1);
+    e->FirstChildElement("z1")->QueryDoubleText(&lp.z1);
+    e->FirstChildElement("x2")->QueryDoubleText(&lp.x2);
+    e->FirstChildElement("y2")->QueryDoubleText(&lp.y2);
+    e->FirstChildElement("z2")->QueryDoubleText(&lp.z2);
+    e->FirstChildElement("r")->QueryDoubleText(&lp.r);
+    e->FirstChildElement("g")->QueryDoubleText(&lp.g);
+    e->FirstChildElement("b")->QueryDoubleText(&lp.b);
+    lines->push_back(lp);
+  }
 
   // Read in pass through filter params
   tinyxml2::XMLElement* ptfpElement = doc.FirstChildElement()->FirstChildElement("passThroughFilter");
@@ -408,8 +439,8 @@ int main () {
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::visualization::PCLVisualizer::Ptr viewer;
-  viewer = mapping_vis(display_cloud, icp);
-  inputAndFilter(true, "westmead_pcd/calibration/lidar1.calibration.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
-  inputAndFilter(false, "westmead_pcd/lidar1.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  viewer = mapping_vis(display_cloud, icp, lines);
+  inputAndFilter(true, "overpass/lidar1.calibration.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  inputAndFilter(false, "overpass/lidar1.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
   return 0;
 }
