@@ -29,25 +29,170 @@
     </initialCameraParams>
     <drawLines>
         <line>
-            <name>Median Divider</name>
-            <x1>11</x1>
-            <y1>-4</y1>
-            <z1>-2</z1>
-            <x2>14.5</x2>
-            <y2>-10</y2>
-            <z2>3</z2>
+            <name>Median Divider Ground</name>
+            <!-- Point 0 (Close Left Ground)-->
+            <x1>10.75</x1>
+            <y1>-3.75</y1>
+            <z1>-3.5</z1>
+            <!-- Point 1 (Far Left Ground)-->
+            <x2>17</x2>
+            <y2>-15.5</y2>    
+            <z2>6</z2>
             <r>255</r>
             <g>0</g>
             <b>0</b>
         </line>
         <line>
-            <name>Roadside Divider</name>
+            <name>Median Divider Overhead</name>
+            <!-- Point 4 (Close Left Overhead)-->
+            <x1>7.55</x1>
+            <y1>-1.25</y1>
+            <z1>3.5</z1>
+            <!-- Point 5 (Far Left Overhead)-->
+            <x2>13.75</x2>
+            <y2>-12.25</y2>    
+            <z2>12</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Far Left Vertical Connector</name>
+            <!-- Point 1 (Far Left Ground)-->
+            <x1>17</x1>
+            <y1>-15.5</y1>    
+            <z1>6</z1>
+            <!-- Point 5 (Far Left Overhead)-->
+            <x2>13.75</x2>
+            <y2>-12.25</y2>    
+            <z2>12</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Roadside Divider Ground</name>
+            <!-- Point 2 (Close Right Ground)-->
             <x1>3</x1>
             <y1>-10</y1>
-            <z1>-3</z1>
-            <x2>5</x2>
-            <y2>-15</y2>
-            <z2>3</z2>
+            <z1>-4.75</z1>
+            <!-- Point 3 (Far Right Ground)-->
+            <x2>8.7</x2>
+            <y2>-23</y2>
+            <z2>5</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Roadside Divider Overhead</name>
+            <!-- Point 6 (Close Right Overhead)-->
+            <x1>0.75</x1>
+            <y1>-7</y1>
+            <z1>2.75</z1>
+            <!-- Point 7 (Far Right Overhead)-->
+            <x2>6</x2>
+            <y2>-18.75</y2>
+            <z2>11</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Close Right Vertical Connector</name>
+            <!-- Point 2 (Close Right Ground)-->
+            <x1>3</x1>
+            <y1>-10</y1>
+            <z1>-4.75</z1>
+            <!-- Point 6 (Close Right Overhead)-->
+            <x2>0.75</x2>
+            <y2>-7</y2>
+            <z2>2.75</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Far Right Vertical Connector</name>
+            <!-- Point 3 (Far Right Ground)-->
+            <x1>8.7</x1>
+            <y1>-23</y1>
+            <z1>5</z1>
+            <!-- Point 7 (Far Right Overhead)-->
+            <x2>6</x2>
+            <y2>-18.75</y2>
+            <z2>11</z2>
+            <r>255</r>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Close Vertical Connector</name>
+            <!-- Point 0 (Close Left Ground)-->
+            <x1>10.75</x1>
+            <y1>-3.75</y1>
+            <z1>-3.5</z1>
+            <!-- Point 4 (Close Left Overhead)-->
+            <x2>7.55</x2>
+            <y2>-1.25</y2>
+            <z2>3.5</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Close Ground Connector</name>
+            <!-- Point 2 (Close Right Ground)-->
+            <x1>3</x1>
+            <y1>-10</y1>
+            <z1>-4.75</z1>
+            <!-- Point 0 (Close Left Ground)-->
+            <x2>10.75</x2>
+            <y2>-3.75</y2>
+            <z2>-3.5</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Far Ground Connector</name>
+            <!-- Point 1 (Far Left Ground)-->
+            <x1>17</x1>
+            <y1>-15.5</y1>    
+            <z1>6</z1>
+            <!-- Point 3 (Far Right Ground)-->
+            <x2>8.7</x2>
+            <y2>-23</y2>
+            <z2>5</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Close Overhead Connector</name>
+            <!-- Point 4 (Close Left Overhead)-->
+            <x1>7.55</x1>
+            <y1>-1.25</y1>
+            <z1>3.5</z1>
+            <!-- Point 6 (Close Right Overhead)-->
+            <x2>0.75</x2>
+            <y2>-7</y2>
+            <z2>2.75</z2>
+            <r>255</r>
+            <g>0</g>
+            <b>0</b>
+        </line>
+        <line>
+            <name>Far Overhead Connector</name>
+            <!-- Point 5 (Far Left Overhead)-->
+            <x1>13.75</x1>
+            <y1>-12.25</y1>    
+            <z1>12</z1>
+            <!-- Point 7 (Far Right Overhead)-->
+            <x2>6</x2>
+            <y2>-18.75</y2>
+            <z2>11</z2>
             <r>255</r>
             <g>0</g>
             <b>0</b>
@@ -84,7 +229,7 @@
         </transformation>
     </boxFilter>
     <backgroundFilter>
-        <enabled>true</enabled>
+        <enabled>false</enabled>
         <threshold>0.5</threshold>
     </backgroundFilter>
 </process-config>
