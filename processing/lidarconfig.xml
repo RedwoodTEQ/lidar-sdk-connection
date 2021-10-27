@@ -29,19 +29,19 @@
     </initialCameraParams>
     <drawLines>
         <line>
-            <name>Median Divider</name>
-            <x1>11</x1>
-            <y1>-4</y1>
-            <z1>-2</z1>
-            <x2>14.5</x2>
-            <y2>-10</y2>
-            <z2>3</z2>
+            <name>Median Divider Ground</name>
+            <x1>10.75</x1>
+            <y1>-3.75</y1>
+            <z1>-3.25</z1>
+            <x2>15</x2>
+            <y2>-11.5</y2>    
+            <z2>2.75</z2>
             <r>255</r>
             <g>0</g>
             <b>0</b>
         </line>
         <line>
-            <name>Roadside Divider</name>
+            <name>Roadside Divider Ground</name>
             <x1>3</x1>
             <y1>-10</y1>
             <z1>-3</z1>
@@ -84,7 +84,7 @@
         </transformation>
     </boxFilter>
     <backgroundFilter>
-        <enabled>true</enabled>
+        <enabled>false</enabled>
         <threshold>0.5</threshold>
     </backgroundFilter>
 </process-config>
