@@ -208,30 +208,32 @@
         <filter_y_max>12.5</filter_y_max>
     </passThroughFilter>
     <boxFilter>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
         <minPoint>
-            <x>0.0</x>
-            <y>0.0</y>
-            <z>-20.0</z>
+            <x>0</x>
+            <y>0</y>
+            <z>0</z>
         </minPoint>
         <maxPoint>
-            <x>7.7</x>
-            <y>21.34</y>
-            <z>20.0</z>
+            <x>10</x>
+            <y>16.4</y>
+            <z>8.09</z>
         </maxPoint>
         <transformation>
-            <x>-5.0</x>
-            <y>8.4</y>
-            <z>0.0</z>
-            <roll>0.0</roll>
-            <pitch>0.0</pitch>
-            <yaw>-0.7328</yaw>
+            <x>4</x>
+            <y>22</y>
+            <z>9</z>
+            <roll>0.45</roll>
+            <pitch>0.475</pitch>
+            <yaw>-0.45</yaw>
         </transformation>
     </boxFilter>
     <backgroundFilter>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
         <threshold>0.5</threshold>
     </backgroundFilter>
+    <!-- Set to true for debugging -->
+    <exitAfterLastFrame>true</exitAfterLastFrame>
 </process-config>
 <!--
 vim:tabstop=4:noet:softabstop=4:shiftwidth=4

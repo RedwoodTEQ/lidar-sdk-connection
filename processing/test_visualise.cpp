@@ -191,7 +191,7 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
   return true;
 }
 
-void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon) {
+void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon, bool exitAfterLastFrame) {
   bool enable_clustering = true;
 
   struct archive *a;
@@ -287,6 +287,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
                                                       paracon.boxfp.transform_pitch, 
                                                       paracon.boxfp.transform_yaw ));
       box_filter.filter(indices2);
+      std::cout << indices2.size() << std::endl;
       if (calibration) {
         box_filter.filter(*target);
       }
@@ -348,7 +349,14 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cout << "0 vehicles in frame" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
-    v->spinOnce(50);
+    if (exitAfterLastFrame) {
+      v->spinOnce(50);
+    }
+    else {
+      while (1) {
+        v->spinOnce(50);
+      }
+    }
   }
 }
 
@@ -368,6 +376,7 @@ int main () {
   BoxFilterParams boxfp = {};
   BackgroundFilterParams bgfp = {};
   auto lines = new std::vector<LineParams>();
+  auto exitOnLastFrame = false;
 
   // Read in initial camera params
   tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
@@ -397,6 +406,10 @@ int main () {
     e->FirstChildElement("b")->QueryDoubleText(&lp.b);
     lines->push_back(lp);
   }
+
+  // Decide if we should exit vtk on last frame (debug mode)
+  tinyxml2::XMLElement* exitOnlastElement = doc.FirstChildElement()->FirstChildElement("exitAfterLastFrame");
+  exitOnlastElement->QueryBoolText(&exitOnLastFrame);
 
   // Read in pass through filter params
   tinyxml2::XMLElement* ptfpElement = doc.FirstChildElement()->FirstChildElement("passThroughFilter");
@@ -440,7 +453,9 @@ int main () {
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::visualization::PCLVisualizer::Ptr viewer;
   viewer = mapping_vis(display_cloud, icp, lines);
-  inputAndFilter(true, "overpass/lidar1.calibration.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
-  inputAndFilter(false, "overpass/lidar1.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  inputAndFilter(true, "overpass/lidar1.calibration.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon, exitOnLastFrame);
+  inputAndFilter(false, "overpass/lidar1.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon, exitOnLastFrame);
+  //inputAndFilter(true, "overpass/lidar1.calibration.ascii.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
+  //inputAndFilter(false, "overpass/full.pcd.gz", calib_cloud, display_cloud, viewer, paracon);
   return 0;
 }
