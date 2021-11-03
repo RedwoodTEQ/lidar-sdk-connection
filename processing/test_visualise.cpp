@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <istream>
+#include <random>
 #include <streambuf>
 #include <string>
 #include <thread>
@@ -114,16 +115,16 @@ typedef struct _bounding_box {
 
 // Simple "uuid" generator by CaptainCodeman
 // https://stackoverflow.com/questions/24365331/how-can-i-generate-uuid-in-c-without-using-boost-library/58467162
-string get_uuid() {
-    static random_device dev;
-    static mt19937 rng(dev());
+std::string get_uuid() {
+    static std::random_device dev;
+    static std::mt19937 rng(dev());
 
-    uniform_int_distribution<int> dist(0, 15);
+    std::uniform_int_distribution<int> dist(0, 15);
 
     const char *v = "0123456789abcdef";
     const bool dash[] = { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
 
-    string res;
+    std::string res;
     for (int i = 0; i < 16; i++) {
         if (dash[i]) res += "-";
         res += v[dist(rng)];
