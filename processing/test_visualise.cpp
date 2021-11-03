@@ -13,18 +13,18 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <pcl/common/centroid.h>
 #include <pcl/common/distances.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
-#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/segmentation/segment_differences.h>
 #include <pcl/segmentation/conditional_euclidean_clustering.h>
-#include <pcl/filters/voxel_grid.h>
-
-#include <pcl/features/normal_3d.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 #include <archive.h> 
 #include <archive_entry.h>
@@ -113,6 +113,7 @@ typedef struct _bounding_box {
   double delta_z;
 } BoundingBox, *BoundingBoxPtr;
 
+// Not sure if we need this yet
 // Simple "uuid" generator by CaptainCodeman
 // https://stackoverflow.com/questions/24365331/how-can-i-generate-uuid-in-c-without-using-boost-library/58467162
 std::string get_uuid() {
@@ -190,6 +191,17 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   auto vehicle_height = max_height - min_height;
   std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
   return bounding_box;
+}
+
+pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
+  pcl::CentroidPoint<pcl::PointXYZI> centroid;
+  for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = input->begin(); it != input->end(); ++it ) {
+    centroid.add(*it);
+  }
+  pcl::PointXYZ c1;
+  centroid.get(c1);
+  std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
+  return c1;
 }
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
@@ -361,8 +373,9 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       for (int i = 0; i < clusters->size(); ++i) {
         pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
+        pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
         BoundingBox bb = determineBoundingBox(extracted_cloud);
-        break;
+        break; // This is stopping us from considering multiple clusters per frame
       }
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
