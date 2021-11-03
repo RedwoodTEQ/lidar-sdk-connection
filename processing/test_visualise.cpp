@@ -34,6 +34,7 @@
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
+# define MAX_FRAMES_DISAPPEARED 2               /* max number of frames an object can be disappeared for */
 
 struct membuf : std::streambuf
 {
@@ -204,6 +205,25 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   return c1;
 }
 
+int update(pcl::IndicesClustersPtr clusters, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared ) {
+  // Mark all as disappeared
+  if (clusters->size() == 0) {
+    for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
+      it->second++;
+    }
+    for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+      if (it->second > MAX_FRAMES_DISAPPEARED) {
+        disappeared.erase(it++);
+      }
+      else {
+        ++it;
+      }
+    }
+    return 0;
+  }
+  return 0;
+}
+
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
 {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
@@ -226,6 +246,11 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
 
 void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon, bool exitAfterLastFrame) {
   bool enable_clustering = true;
+
+  // Set up centroid tracking
+  auto next_object_id = 0;
+  std::map<int, pcl::PointXYZ> objects;
+  std::map<int, int> disappeared;
 
   struct archive *a;
   struct archive_entry *a_entry;
@@ -370,6 +395,9 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       cec.segment(*clusters);
       
       std::cout << "Number of clusters: " << clusters->size() << std::endl;
+
+      auto rtn = update(clusters, objects, disappeared);
+
       for (int i = 0; i < clusters->size(); ++i) {
         pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
