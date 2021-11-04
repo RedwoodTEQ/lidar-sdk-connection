@@ -117,10 +117,10 @@ typedef struct _bounding_box {
 
 // https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
 template <typename T>
-std::vector<double> sort_indexes(const std::vector<T> &v) {
+std::vector<int> sort_indexes(const std::vector<T> &v) {
 
   // initialize original index locations
-  std::vector<double> idx(v.size());
+  std::vector<int> idx(v.size());
   std::iota(idx.begin(), idx.end(), 0);
 
   // sort indexes based on comparing values in v
@@ -261,16 +261,24 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       is at the front of the index list
     */
     std::vector<double> rows_tmp;
+    std::vector<int> cols_tmp;
     for (auto d_it = D.begin(); d_it != D.end(); ++d_it) {
       rows_tmp.push_back(*std::min_element(std::begin(*d_it), std::end(*d_it)));
+      cols_tmp.push_back(std::distance(std::begin(*d_it), std::min_element(std::begin(*d_it), std::end(*d_it))));
     }
     // for (auto it = rows_tmp.begin(); it != rows_tmp.end(); ++it) {
     //   std::cout << "row_tmp_val: " << *it << std::endl;
     // }
-    auto comp = [](const double &a, const double& b) {
-    return a > b;
-    };
-    std::vector<double> rows = sort_indexes(rows_tmp);
+    std::vector<int> rows = sort_indexes(rows_tmp);
+    std::vector<double> cols(cols_tmp.size());
+    int i = 0;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+      cols[*it] = cols_tmp[i];
+      i++;
+    }
+    // for (auto it = cols.begin(); it != cols.end(); ++it) {
+    //   std::cout << "cols_val: " << *it << std::endl;
+    // }
   }
 
   return;
