@@ -211,9 +211,18 @@ void update(std::vector<pcl::PointXYZ> centroids, std::map<int, pcl::PointXYZ> &
     return;
   }
   
+  // If we are not currently tracking any objects
   if (objects.size() == 0) {
     for (auto it = centroids.begin(); it != centroids.end(); ++it) {
       register_new(*it, objects, disappeared, nextObjectID);
+    }
+  }
+  else {
+    std::vector<int> objectIDs;
+    std::vector<pcl::PointXYZ> objectCentroids;
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+      objectIDs.push_back(it->first);
+      objectCentroids.push_back(it->second);
     }
   }
 
