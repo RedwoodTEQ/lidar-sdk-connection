@@ -190,30 +190,36 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
   nextObjectID++;
 }
 
-void deregister(int objectID, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared) {
-  objects.erase(objectID);
-  disappeared.erase(objectID);
-}
+// void deregister(int objectID, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared) {
+//   objects.erase(objectID);
+//   disappeared.erase(objectID);
+// }
 
-void update(std::vector<pcl::PointXYZ> centroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+  // std::cout << "UPDATE CALLED\n";
   // Mark all as disappeared
-  if (centroids.size() == 0) {
+  if (inputCentroids.size() == 0) {
+    // std::cout << "NO CENTROIDS\n";
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
       it->second++;
     }
+    // std::cout << "NO CENTROIDS 2\n";
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
-        deregister(it->first, objects, disappeared);
+        std::cout << "Deregistering object ID: " << it->first << std::endl;
+        objects.erase(it->first);
+        disappeared.erase(it++);
       } else {
         ++it;
       }
     }
+    // std::cout << "NO CENTROIDS 3\n";
     return;
   }
-  
+
   // If we are not currently tracking any objects
   if (objects.size() == 0) {
-    for (auto it = centroids.begin(); it != centroids.end(); ++it) {
+    for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
       register_new(*it, objects, disappeared, nextObjectID);
     }
   }
@@ -223,6 +229,14 @@ void update(std::vector<pcl::PointXYZ> centroids, std::map<int, pcl::PointXYZ> &
     for (auto it = objects.begin(); it != objects.end(); ++it) {
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
+    }
+    std::vector<std::vector<double>> D;
+    for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
+      std::vector<double> matrix_row;
+      for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
+        matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
+      }
+      D.push_back(matrix_row);
     }
   }
 
@@ -383,6 +397,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     // // Clustering test
 
     pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
+    std::vector<pcl::PointXYZ> centroids;
     if (enable_clustering){
       if (displayCloud->size() > 0) {
         pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
@@ -400,19 +415,19 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         cec.setClusterTolerance(1.0);
         cec.setMinClusterSize(80);
         cec.segment(*clusters);
+
+        for (int i = 0; i < clusters->size(); ++i) {
+          pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+          pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
+          pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
+          centroids.push_back(cent);
+          BoundingBox bb = determineBoundingBox(extracted_cloud);
+        }
       }
-      
+
       std::cout << "Number of clusters: " << clusters->size() << std::endl;
       
-      std::vector<pcl::PointXYZ> centroids;
-
-      for (int i = 0; i < clusters->size(); ++i) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
-        pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
-        centroids.push_back(cent);
-        BoundingBox bb = determineBoundingBox(extracted_cloud);
-      }
+      
       update(centroids, objects, disappeared, nextObjectID);
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
