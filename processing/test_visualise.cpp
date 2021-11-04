@@ -296,6 +296,39 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       usedRows.insert(row);
       usedCols.insert(col);
     }
+    std::set<int> unusedRows;
+    std::set<int> unusedCols;
+    for (auto k = 0; k < D.size(); k++) {
+      if (usedRows.find(k) == usedRows.end()) {
+        unusedRows.insert(k);
+      }
+    }
+    for (auto k = 0; k < D[0].size(); k++) {
+      if (usedCols.find(k) == usedCols.end()) {
+        usedCols.insert(k);
+      }
+    }
+
+    if (D.size() >= D[0].size()) {
+      for (auto it = unusedRows.begin(); it != unusedRows.end(); ++it) {
+        auto objectID = objectIDs[*it];
+        disappeared[objectID]++;
+      }
+      for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+        if (it->second > MAX_FRAMES_DISAPPEARED) {
+          std::cout << "Deregistering object ID: " << it->first << std::endl;
+          objects.erase(it->first);
+          disappeared.erase(it++);
+        } else {
+          ++it;
+        }
+      }
+    }
+    else {
+      for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
+        register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
+      }
+    }
   }
 
   return;
