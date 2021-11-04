@@ -190,11 +190,6 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
   nextObjectID++;
 }
 
-// void deregister(int objectID, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared) {
-//   objects.erase(objectID);
-//   disappeared.erase(objectID);
-// }
-
 void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
   // std::cout << "UPDATE CALLED\n";
   // Mark all as disappeared
@@ -224,12 +219,15 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
   }
   else {
+    // Grab the set of object IDs and corresponding centroids
     std::vector<int> objectIDs;
     std::vector<pcl::PointXYZ> objectCentroids;
     for (auto it = objects.begin(); it != objects.end(); ++it) {
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
+
+    // Compute distance between each pair of object centroids and input centroids, respectively
     std::vector<std::vector<double>> D;
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
       std::vector<double> matrix_row;
@@ -238,6 +236,16 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       D.push_back(matrix_row);
     }
+
+    /* Find the smallest value in each row and sort the row indexes 
+      based on their minimum values so that the row with the smallest value
+      is at the front of the index list
+    */
+    std::vector<double> rows_tmp;
+    for (auto d_it = D.begin(); d_it != D.end(); ++d_it) {
+      rows_tmp.push_back(*std::min_element(std::begin(*d_it), std::end(*d_it)));
+    }
+    std::vector<double> rows;
   }
 
   return;
