@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <istream>
+#include <numeric>
 #include <random>
 #include <streambuf>
 #include <string>
@@ -113,6 +114,24 @@ typedef struct _bounding_box {
   double delta_y;
   double delta_z;
 } BoundingBox, *BoundingBoxPtr;
+
+// https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
+template <typename T>
+std::vector<double> sort_indexes(const std::vector<T> &v) {
+
+  // initialize original index locations
+  std::vector<double> idx(v.size());
+  std::iota(idx.begin(), idx.end(), 0);
+
+  // sort indexes based on comparing values in v
+  // using std::stable_sort instead of std::sort
+  // to avoid unnecessary index re-orderings
+  // when v contains elements of equal values 
+  std::stable_sort(idx.begin(), idx.end(),
+       [&v](double i1, double i2) {return v[i1] < v[i2];});
+
+  return idx;
+}
 
 BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
   BoundingBox bounding_box = {};
@@ -245,7 +264,13 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     for (auto d_it = D.begin(); d_it != D.end(); ++d_it) {
       rows_tmp.push_back(*std::min_element(std::begin(*d_it), std::end(*d_it)));
     }
-    std::vector<double> rows;
+    // for (auto it = rows_tmp.begin(); it != rows_tmp.end(); ++it) {
+    //   std::cout << "row_tmp_val: " << *it << std::endl;
+    // }
+    auto comp = [](const double &a, const double& b) {
+    return a > b;
+    };
+    std::vector<double> rows = sort_indexes(rows_tmp);
   }
 
   return;
