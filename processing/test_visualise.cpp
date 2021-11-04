@@ -114,27 +114,6 @@ typedef struct _bounding_box {
   double delta_z;
 } BoundingBox, *BoundingBoxPtr;
 
-// Not sure if we need this yet
-// Simple "uuid" generator by CaptainCodeman
-// https://stackoverflow.com/questions/24365331/how-can-i-generate-uuid-in-c-without-using-boost-library/58467162
-std::string get_uuid() {
-    static std::random_device dev;
-    static std::mt19937 rng(dev());
-
-    std::uniform_int_distribution<int> dist(0, 15);
-
-    const char *v = "0123456789abcdef";
-    const bool dash[] = { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
-
-    std::string res;
-    for (int i = 0; i < 16; i++) {
-        if (dash[i]) res += "-";
-        res += v[dist(rng)];
-        res += v[dist(rng)];
-    }
-    return res;
-}
-
 BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
   BoundingBox bounding_box = {};
   pcl::PointXYZ baseline = pcl::PointXYZ(-5.98, 11.31, 0);
@@ -205,23 +184,34 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   return c1;
 }
 
-int update(pcl::IndicesClustersPtr clusters, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared ) {
+void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+  objects[nextObjectID] = centroid;
+  disappeared[nextObjectID] = 0;
+  nextObjectID++;
+}
+
+void deregister(int objectID, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared) {
+  objects.erase(objectID);
+  disappeared.erase(objectID);
+}
+
+void update(std::vector<pcl::PointXYZ> centroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
   // Mark all as disappeared
-  if (clusters->size() == 0) {
+  if (centroids.size() == 0) {
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
       it->second++;
     }
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
-        disappeared.erase(it++);
-      }
-      else {
+        deregister(it->first, objects, disappeared);
+      } else {
         ++it;
       }
     }
-    return 0;
+    return;
   }
-  return 0;
+  std::vector<pcl::PointXYZ> inputCentroids; // empty constructor
+  return;
 }
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
@@ -248,7 +238,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
   bool enable_clustering = true;
 
   // Set up centroid tracking
-  auto next_object_id = 0;
+  auto nextObjectID = 0;
   std::map<int, pcl::PointXYZ> objects;
   std::map<int, int> disappeared;
 
@@ -377,38 +367,40 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
-    if (displayCloud->size() > 0 && enable_clustering){
-      pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
-      pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
-      pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters);
-      pcl::copyPointCloud(*displayCloud, *displayCloud_with_normals);
-      pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
-      ne.setInputCloud(displayCloud);
-      ne.setSearchMethod(search_tree);
-      ne.setRadiusSearch(1.0);
-      ne.compute(*displayCloud_with_normals);
-      pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
-      cec.setInputCloud(displayCloud_with_normals);
-      cec.setConditionFunction(&customRegionGrowing);
-      cec.setClusterTolerance(1.0);
-      cec.setMinClusterSize(80);
-      cec.segment(*clusters);
+    pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
+    if (enable_clustering){
+      if (displayCloud->size() > 0) {
+        pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
+        pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
+        
+        pcl::copyPointCloud(*displayCloud, *displayCloud_with_normals);
+        pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
+        ne.setInputCloud(displayCloud);
+        ne.setSearchMethod(search_tree);
+        ne.setRadiusSearch(1.0);
+        ne.compute(*displayCloud_with_normals);
+        pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
+        cec.setInputCloud(displayCloud_with_normals);
+        cec.setConditionFunction(&customRegionGrowing);
+        cec.setClusterTolerance(1.0);
+        cec.setMinClusterSize(80);
+        cec.segment(*clusters);
+      }
       
       std::cout << "Number of clusters: " << clusters->size() << std::endl;
-
-      auto rtn = update(clusters, objects, disappeared);
+      
+      std::vector<pcl::PointXYZ> centroids;
 
       for (int i = 0; i < clusters->size(); ++i) {
         pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
         pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
+        centroids.push_back(cent);
         BoundingBox bb = determineBoundingBox(extracted_cloud);
-        break; // This is stopping us from considering multiple clusters per frame
       }
+      update(centroids, objects, disappeared, nextObjectID);
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
-    } else {
-    std::cout << "0 vehicles in frame" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
