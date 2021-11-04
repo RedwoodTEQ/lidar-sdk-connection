@@ -279,6 +279,23 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     // for (auto it = cols.begin(); it != cols.end(); ++it) {
     //   std::cout << "cols_val: " << *it << std::endl;
     // }
+
+    std::set<int> usedRows;
+    std::set<int> usedCols;
+
+    for (auto j = 0; j < rows.size(); j++) {
+      auto row = rows[j];
+      auto col = cols[j];
+      if ((usedRows.find(row) != usedRows.end()) || (usedCols.find(col) != usedCols.end())) {
+        continue;
+      }
+      auto objectID = objectIDs[row];
+      objects[objectID] = inputCentroids[col];
+      disappeared[objectID] = 0;
+
+      usedRows.insert(row);
+      usedCols.insert(col);
+    }
   }
 
   return;
