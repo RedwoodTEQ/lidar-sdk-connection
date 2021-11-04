@@ -210,7 +210,13 @@ void update(std::vector<pcl::PointXYZ> centroids, std::map<int, pcl::PointXYZ> &
     }
     return;
   }
-  std::vector<pcl::PointXYZ> inputCentroids; // empty constructor
+  
+  if (objects.size() == 0) {
+    for (auto it = centroids.begin(); it != centroids.end(); ++it) {
+      register_new(*it, objects, disappeared, nextObjectID);
+    }
+  }
+
   return;
 }
 
