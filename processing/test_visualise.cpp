@@ -35,7 +35,7 @@
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
-# define MAX_FRAMES_DISAPPEARED 2               /* max number of frames an object can be disappeared for */
+# define MAX_FRAMES_DISAPPEARED 0              /* max number of frames an object can be disappeared for */
 
 struct membuf : std::streambuf
 {
@@ -182,13 +182,13 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
       min_height = it->z;
     }
   }
-  std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
-  std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
-  std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
+  //std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
+  //std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
+  //std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
   auto vehicle_width = sqrt(pow((leftmost_x - closest_x),2) + pow((leftmost_y - closest_y),2));
   auto vehicle_length = sqrt(pow((farrightmost_x - closest_x),2) + pow((farrightmost_y - closest_y),2));
   auto vehicle_height = max_height - min_height;
-  std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
+  //std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
   return bounding_box;
 }
 
@@ -484,7 +484,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::copyPointCloud(*boxBetter, *displayCloud);
     }
     std::cout << "==================" << std::endl;
-    std::cout << "Points in frame: " << displayCloud->size() << std::endl;
+    //std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
     pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
@@ -504,7 +504,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         cec.setInputCloud(displayCloud_with_normals);
         cec.setConditionFunction(&customRegionGrowing);
         cec.setClusterTolerance(1.0);
-        cec.setMinClusterSize(80);
+        cec.setMinClusterSize(50);
         cec.segment(*clusters);
 
         for (int i = 0; i < clusters->size(); ++i) {
@@ -516,16 +516,17 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         }
       }
 
-      std::cout << "Number of clusters: " << clusters->size() << std::endl;
+      //std::cout << "Number of clusters: " << clusters->size() << std::endl;
       
       
       update(centroids, objects, disappeared, nextObjectID);
+      std::cout << "Total count: " << nextObjectID << std::endl;
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(50);
+      v->spinOnce(200);
     }
     else {
       while (1) {
