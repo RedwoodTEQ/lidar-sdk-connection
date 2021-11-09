@@ -207,19 +207,21 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
   nextObjectID++;
 }
 
-void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, int &nextObjectID ) {
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, int &nextObjectID, int& totalCount ) {
 
   // std::cout << "UPDATE CALLED\n";
   if (inputCentroids.size() == 0) {
     //Delete everything
+    totalCount += objects.size();
     objects.clear();
     return;
   } 
   for (auto it = objects.cbegin(); it != objects.cend();) {
     auto c = it->second;
-    double res = -41.185 * c.x + 52.674 * c.y - 37.959 * c.z + 859.874;
+    double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
     if (res > 0) {
       objects.erase(it++);
+      totalCount++;
     } else {
       ++it;
     }
@@ -230,6 +232,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
       register_new(*it, objects, nextObjectID);
+      std::cout << "FIRST NEW" << std::endl;
     }
   }
   else {
@@ -306,6 +309,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     if (D.size() < D[0].size()) {
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
         register_new(inputCentroids[*it], objects, nextObjectID);
+        std::cout << "REGISTER NEW SECOND" << std::endl;
       }
     }
   }
@@ -315,7 +319,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
 
 bool centroidCrossedThresholdPlane (pcl::PointXYZ c) {
   // Plane equation: -41.185*x + 52.674*y -37.959*z + 859.874 = 0
-  double res = -41.185 * c.x + 52.674 * c.y - 37.959 * c.z + 859.874;
+  double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
   std::cout << "Centroid on side: " << (res > 0) << " of plane" << std::endl;
   // If res > 0, then the vehicle is in front of the plane, otherwise it has not passed it
   double dist = std::abs(res)/std::sqrt(std::pow(-41.185,2) + std::pow(52.674,2) + std::pow(37.959, 2));
@@ -348,6 +352,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 
   // Set up centroid tracking
   auto nextObjectID = 0;
+  auto totalCount = 0;
   std::map<int, pcl::PointXYZ> objects;
 
   struct archive *a;
@@ -443,7 +448,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
                                                       paracon.boxfp.transform_pitch, 
                                                       paracon.boxfp.transform_yaw ));
       box_filter.filter(indices2);
-      std::cout << indices2.size() << std::endl;
+      // std::cout << indices2.size() << std::endl;
       if (calibration) {
         box_filter.filter(*target);
       }
@@ -503,7 +508,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
           // if (crossing) {
           //   nextObjectID++;
           // }
-          double res = -41.185 * cent.x + 52.674 * cent.y - 37.959 * cent.z + 859.874;
+          double res = -41.070 * cent.x + 55.027 * cent.y - 39.5 * cent.z + 786.158;
           if (res <= 0) {
             centroids.push_back(cent);
           }
@@ -512,14 +517,24 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       }
 
       //std::cout << "Number of clusters: " << clusters->size() << std::endl;
-      update(centroids, objects, nextObjectID);
+      update(centroids, objects, nextObjectID, totalCount);
       std::cout << "Total count: " << nextObjectID << std::endl;
-      std::cout << clusters->size() << " vehicles in frame" << std::endl;
+      auto valid_centroids = 0;
+      for (auto it = centroids.begin(); it != centroids.end(); ++it) {
+        auto c = *it;
+        double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
+        if (res <= 0) {
+          valid_centroids++;
+        }
+      }
+      std::cout << objects.size() << " tracked objects" << std::endl;
+      std::cout << valid_centroids << " valid centroids in frame" << std::endl;
+      std::cout << clusters->size() << " total centroids in frame" << std::endl;
       std::cout << "==================" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(50);
+      v->spinOnce(200);
     }
     else {
       while (1) {
