@@ -199,7 +199,7 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   }
   pcl::PointXYZ c1;
   centroid.get(c1);
-  std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
+  // std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
   return c1;
 }
 
@@ -349,7 +349,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     return (viewer);
 }
 
-// Dummy function - always return true
+// Always return true - just use distance thresholding
 bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINormal& b, float squared_d) {
   return true;
 }
@@ -526,7 +526,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(200);
+      v->spinOnce(300);
     }
     else {
       while (1) {
