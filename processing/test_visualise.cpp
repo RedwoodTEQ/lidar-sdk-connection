@@ -3,6 +3,8 @@
 #include <cmath>
 #include <iostream>
 #include <istream>
+#include <numeric>
+#include <random>
 #include <streambuf>
 #include <string>
 #include <thread>
@@ -12,18 +14,18 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <pcl/common/centroid.h>
 #include <pcl/common/distances.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
-#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/segmentation/segment_differences.h>
 #include <pcl/segmentation/conditional_euclidean_clustering.h>
-#include <pcl/filters/voxel_grid.h>
-
-#include <pcl/features/normal_3d.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 #include <archive.h> 
 #include <archive_entry.h>
@@ -33,6 +35,7 @@
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
+# define MAX_FRAMES_DISAPPEARED 0              /* max number of frames an object can be disappeared for */
 
 struct membuf : std::streambuf
 {
@@ -112,6 +115,24 @@ typedef struct _bounding_box {
   double delta_z;
 } BoundingBox, *BoundingBoxPtr;
 
+// https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
+template <typename T>
+std::vector<int> sort_indexes(const std::vector<T> &v) {
+
+  // initialize original index locations
+  std::vector<int> idx(v.size());
+  std::iota(idx.begin(), idx.end(), 0);
+
+  // sort indexes based on comparing values in v
+  // using std::stable_sort instead of std::sort
+  // to avoid unnecessary index re-orderings
+  // when v contains elements of equal values 
+  std::stable_sort(idx.begin(), idx.end(),
+       [&v](double i1, double i2) {return v[i1] < v[i2];});
+
+  return idx;
+}
+
 BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
   BoundingBox bounding_box = {};
   pcl::PointXYZ baseline = pcl::PointXYZ(-5.98, 11.31, 0);
@@ -161,14 +182,156 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
       min_height = it->z;
     }
   }
-  std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
-  std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
-  std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
+  //std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
+  //std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
+  //std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
   auto vehicle_width = sqrt(pow((leftmost_x - closest_x),2) + pow((leftmost_y - closest_y),2));
   auto vehicle_length = sqrt(pow((farrightmost_x - closest_x),2) + pow((farrightmost_y - closest_y),2));
   auto vehicle_height = max_height - min_height;
-  std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
+  //std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
   return bounding_box;
+}
+
+pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
+  pcl::CentroidPoint<pcl::PointXYZI> centroid;
+  for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = input->begin(); it != input->end(); ++it ) {
+    centroid.add(*it);
+  }
+  pcl::PointXYZ c1;
+  centroid.get(c1);
+  std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
+  return c1;
+}
+
+void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+  objects[nextObjectID] = centroid;
+  disappeared[nextObjectID] = 0;
+  nextObjectID++;
+}
+
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+  // std::cout << "UPDATE CALLED\n";
+  // Mark all as disappeared
+  if (inputCentroids.size() == 0) {
+    // std::cout << "NO CENTROIDS\n";
+    for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
+      it->second++;
+    }
+    // std::cout << "NO CENTROIDS 2\n";
+    for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+      if (it->second > MAX_FRAMES_DISAPPEARED) {
+        std::cout << "Deregistering object ID: " << it->first << std::endl;
+        objects.erase(it->first);
+        disappeared.erase(it++);
+      } else {
+        ++it;
+      }
+    }
+    // std::cout << "NO CENTROIDS 3\n";
+    return;
+  }
+
+  // If we are not currently tracking any objects
+  if (objects.size() == 0) {
+    for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
+      register_new(*it, objects, disappeared, nextObjectID);
+    }
+  }
+  else {
+    // Grab the set of object IDs and corresponding centroids
+    std::vector<int> objectIDs;
+    std::vector<pcl::PointXYZ> objectCentroids;
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+      objectIDs.push_back(it->first);
+      objectCentroids.push_back(it->second);
+    }
+
+    // Compute distance between each pair of object centroids and input centroids, respectively
+    std::vector<std::vector<double>> D;
+    for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
+      std::vector<double> matrix_row;
+      for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
+        matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
+      }
+      D.push_back(matrix_row);
+    }
+
+    /* Find the smallest value in each row and sort the row indexes 
+      based on their minimum values so that the row with the smallest value
+      is at the front of the index list
+    */
+    std::vector<double> rows_tmp;
+    std::vector<int> cols_tmp;
+    for (auto d_it = D.begin(); d_it != D.end(); ++d_it) {
+      rows_tmp.push_back(*std::min_element(std::begin(*d_it), std::end(*d_it)));
+      cols_tmp.push_back(std::distance(std::begin(*d_it), std::min_element(std::begin(*d_it), std::end(*d_it))));
+    }
+    // for (auto it = rows_tmp.begin(); it != rows_tmp.end(); ++it) {
+    //   std::cout << "row_tmp_val: " << *it << std::endl;
+    // }
+    std::vector<int> rows = sort_indexes(rows_tmp);
+    std::vector<double> cols(cols_tmp.size());
+    int i = 0;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+      cols[*it] = cols_tmp[i];
+      i++;
+    }
+    // for (auto it = cols.begin(); it != cols.end(); ++it) {
+    //   std::cout << "cols_val: " << *it << std::endl;
+    // }
+
+    std::set<int> usedRows;
+    std::set<int> usedCols;
+
+    for (auto j = 0; j < rows.size(); j++) {
+      auto row = rows[j];
+      auto col = cols[j];
+      if ((usedRows.find(row) != usedRows.end()) || (usedCols.find(col) != usedCols.end())) {
+        continue;
+      }
+      auto objectID = objectIDs[row];
+      objects[objectID] = inputCentroids[col];
+      disappeared[objectID] = 0;
+
+      usedRows.insert(row);
+      usedCols.insert(col);
+    }
+    std::set<int> unusedRows;
+    std::set<int> unusedCols;
+    for (auto k = 0; k < D.size(); k++) {
+      if (usedRows.find(k) == usedRows.end()) {
+        unusedRows.insert(k);
+      }
+    }
+    for (auto k = 0; k < D[0].size(); k++) {
+      if (usedCols.find(k) == usedCols.end()) {
+        usedCols.insert(k);
+      }
+    }
+
+    if (D.size() >= D[0].size()) {
+      for (auto it = unusedRows.begin(); it != unusedRows.end(); ++it) {
+        auto objectID = objectIDs[*it];
+        disappeared[objectID]++;
+      }
+      for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+        if (it->second > MAX_FRAMES_DISAPPEARED) {
+          std::cout << "Deregistering object ID: " << it->first << std::endl;
+          objects.erase(it->first);
+          disappeared.erase(it++);
+        } else {
+          ++it;
+        }
+      }
+    }
+    else {
+      for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
+        register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
+      }
+    }
+  }
+
+  return;
 }
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
@@ -193,6 +356,11 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
 
 void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon, bool exitAfterLastFrame) {
   bool enable_clustering = true;
+
+  // Set up centroid tracking
+  auto nextObjectID = 0;
+  std::map<int, pcl::PointXYZ> objects;
+  std::map<int, int> disappeared;
 
   struct archive *a;
   struct archive_entry *a_entry;
@@ -316,41 +484,49 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
       pcl::copyPointCloud(*boxBetter, *displayCloud);
     }
     std::cout << "==================" << std::endl;
-    std::cout << "Points in frame: " << displayCloud->size() << std::endl;
+    //std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
-    if (displayCloud->size() > 0 && enable_clustering){
-      pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
-      pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
-      pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters);
-      pcl::copyPointCloud(*displayCloud, *displayCloud_with_normals);
-      pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
-      ne.setInputCloud(displayCloud);
-      ne.setSearchMethod(search_tree);
-      ne.setRadiusSearch(1.0);
-      ne.compute(*displayCloud_with_normals);
-      pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
-      cec.setInputCloud(displayCloud_with_normals);
-      cec.setConditionFunction(&customRegionGrowing);
-      cec.setClusterTolerance(1.0);
-      cec.setMinClusterSize(80);
-      cec.segment(*clusters);
-      
-      std::cout << "Number of clusters: " << clusters->size() << std::endl;
-      for (int i = 0; i < clusters->size(); ++i) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
-        BoundingBox bb = determineBoundingBox(extracted_cloud);
-        break;
+    pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
+    std::vector<pcl::PointXYZ> centroids;
+    if (enable_clustering){
+      if (displayCloud->size() > 0) {
+        pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
+        pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
+        
+        pcl::copyPointCloud(*displayCloud, *displayCloud_with_normals);
+        pcl::NormalEstimation<pcl::PointXYZI, pcl::PointXYZINormal> ne;
+        ne.setInputCloud(displayCloud);
+        ne.setSearchMethod(search_tree);
+        ne.setRadiusSearch(1.0);
+        ne.compute(*displayCloud_with_normals);
+        pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
+        cec.setInputCloud(displayCloud_with_normals);
+        cec.setConditionFunction(&customRegionGrowing);
+        cec.setClusterTolerance(1.0);
+        cec.setMinClusterSize(50);
+        cec.segment(*clusters);
+
+        for (int i = 0; i < clusters->size(); ++i) {
+          pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+          pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
+          pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
+          centroids.push_back(cent);
+          BoundingBox bb = determineBoundingBox(extracted_cloud);
+        }
       }
+
+      //std::cout << "Number of clusters: " << clusters->size() << std::endl;
+      
+      
+      update(centroids, objects, disappeared, nextObjectID);
+      std::cout << "Total count: " << nextObjectID << std::endl;
       std::cout << clusters->size() << " vehicles in frame" << std::endl;
       std::cout << "==================" << std::endl;
-    } else {
-    std::cout << "0 vehicles in frame" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(50);
+      v->spinOnce(200);
     }
     else {
       while (1) {
