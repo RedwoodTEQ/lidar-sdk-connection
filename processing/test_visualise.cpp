@@ -35,6 +35,7 @@
 using namespace std::literals::chrono_literals;
 
 # define M_PI           3.14159265358979323846  /* pi */
+# define MAX_FRAMES_DISAPPEARED 0              /* max number of frames an object can be disappeared for */
 
 struct membuf : std::streambuf
 {
@@ -202,36 +203,37 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   return c1;
 }
 
-void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, int &nextObjectID ) {
+void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared,  int &nextObjectID ) {
   objects[nextObjectID] = centroid;
+  disappeared[nextObjectID] = 0;
   nextObjectID++;
 }
 
-void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, int &nextObjectID, int& totalCount ) {
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
 
-  // std::cout << "UPDATE CALLED\n";
   if (inputCentroids.size() == 0) {
-    //Delete everything
-    totalCount += objects.size();
-    objects.clear();
-    return;
-  } 
-  for (auto it = objects.cbegin(); it != objects.cend();) {
-    auto c = it->second;
-    double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
-    if (res > 0) {
-      objects.erase(it++);
-      totalCount++;
-    } else {
-      ++it;
+    // std::cout << "NO CENTROIDS\n";
+    for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
+      it->second++;
     }
-
+    // std::cout << "NO CENTROIDS 2\n";
+    for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+      if (it->second > MAX_FRAMES_DISAPPEARED) {
+        std::cout << "Deregistering object ID: " << it->first << std::endl;
+        objects.erase(it->first);
+        disappeared.erase(it++);
+      } else {
+        ++it;
+      }
+    }
+    // std::cout << "NO CENTROIDS 3\n";
+    return;
   }
 
   // If we are not currently tracking any objects
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
-      register_new(*it, objects, nextObjectID);
+      register_new(*it, objects, disappeared, nextObjectID);
       std::cout << "FIRST NEW" << std::endl;
     }
   }
@@ -289,7 +291,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       auto objectID = objectIDs[row];
       objects[objectID] = inputCentroids[col];
-
+      disappeared[objectID] = 0;
       usedRows.insert(row);
       usedCols.insert(col);
     }
@@ -307,26 +309,31 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     //std::cout << "D.size(): " << D.size() << std::endl;
     //std::cout << "D[0].size(): " << D[0].size() << std::endl;
-    if (D.size() < D[0].size()) {
+    if (D.size() >= D[0].size()) {
+      for (auto it = unusedRows.begin(); it != unusedRows.end(); ++it) {
+        auto objectID = objectIDs[*it];
+        disappeared[objectID]++;
+      }
+      for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
+        if (it->second > MAX_FRAMES_DISAPPEARED) {
+          std::cout << "Deregistering object ID: " << it->first << std::endl;
+          objects.erase(it->first);
+          disappeared.erase(it++);
+        } else {
+          ++it;
+        }
+      }
+    }
+    else {
       //std::cout << "unused col count: " << unusedCols.size() << std::endl;
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
-        register_new(inputCentroids[*it], objects, nextObjectID);
+        register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
         std::cout << "REGISTER NEW SECOND" << std::endl;
       }
     }
   }
 
   return;
-}
-
-bool centroidCrossedThresholdPlane (pcl::PointXYZ c) {
-  // Plane equation: -41.185*x + 52.674*y -37.959*z + 859.874 = 0
-  double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
-  std::cout << "Centroid on side: " << (res > 0) << " of plane" << std::endl;
-  // If res > 0, then the vehicle is in front of the plane, otherwise it has not passed it
-  double dist = std::abs(res)/std::sqrt(std::pow(-41.185,2) + std::pow(52.674,2) + std::pow(37.959, 2));
-  std::cout << "dtt: " << dist << std::endl;
-  return (res > 0) && (dist < 2.04); // If within 2.22m of the plane, count it
 }
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
@@ -356,6 +363,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
   auto nextObjectID = 0;
   auto totalCount = 0;
   std::map<int, pcl::PointXYZ> objects;
+  std::map<int, int> disappeared;
 
   struct archive *a;
   struct archive_entry *a_entry;
@@ -368,7 +376,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cerr << "archive open error occured!" << std::endl;
     return;
   }
-  bool skip_files = false;
+  bool skip_files = true;
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
     pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -377,7 +385,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
-    if (std::string("1634794337.478530884.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
+    if (std::string("1634794377.778308868.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
       skip_files = false;
     }
     if (skip_files && !calibration) {
@@ -506,7 +514,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
         cec.setInputCloud(displayCloud_with_normals);
         cec.setConditionFunction(&customRegionGrowing);
-        cec.setClusterTolerance(1.0);
+        cec.setClusterTolerance(1.5);
         cec.setMinClusterSize(50);
         cec.segment(*clusters);
 
@@ -514,31 +522,14 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
           pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
           pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
           pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
-          // auto crossing = centroidCrossedThresholdPlane(cent);
-          // if (crossing) {
-          //   nextObjectID++;
-          // }
-          double res = -41.070 * cent.x + 55.027 * cent.y - 39.5 * cent.z + 786.158;
-          if (res <= 0) {
-            centroids.push_back(cent);
-          }
+          centroids.push_back(cent);
           BoundingBox bb = determineBoundingBox(extracted_cloud);
         }
       }
 
-      //std::cout << "Number of clusters: " << clusters->size() << std::endl;
-      update(centroids, objects, nextObjectID, totalCount);
+      update(centroids, objects, disappeared, nextObjectID, totalCount);
       std::cout << "Total count: " << nextObjectID << std::endl;
-      auto valid_centroids = 0;
-      for (auto it = centroids.begin(); it != centroids.end(); ++it) {
-        auto c = *it;
-        double res = -41.070 * c.x + 55.027 * c.y - 39.5 * c.z + 786.158;
-        if (res <= 0) {
-          valid_centroids++;
-        }
-      }
       std::cout << objects.size() << " tracked objects" << std::endl;
-      std::cout << valid_centroids << " valid centroids in frame" << std::endl;
       std::cout << clusters->size() << " total centroids in frame" << std::endl;
       std::cout << "==================" << std::endl;
     }
