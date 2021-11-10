@@ -199,19 +199,18 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   }
   pcl::PointXYZ c1;
   centroid.get(c1);
-  std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
+  // std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
   return c1;
 }
 
-void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
+void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared,  int &nextObjectID ) {
   objects[nextObjectID] = centroid;
   disappeared[nextObjectID] = 0;
   nextObjectID++;
 }
 
-void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID ) {
-  // std::cout << "UPDATE CALLED\n";
-  // Mark all as disappeared
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
+
   if (inputCentroids.size() == 0) {
     // std::cout << "NO CENTROIDS\n";
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
@@ -235,6 +234,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
       register_new(*it, objects, disappeared, nextObjectID);
+      std::cout << "FIRST NEW" << std::endl;
     }
   }
   else {
@@ -245,7 +245,25 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
+    // std::cout << "objectIDs: ";
+    // for (auto it = objectIDs.begin(); it != objectIDs.end(); ++it) {
+    //   std::cout << *it << " , ";
+    // }
+    // std::cout << std::endl;
 
+    // std::cout << "objectCentroids: ";
+    // for (auto it = objectCentroids.begin(); it != objectCentroids.end(); ++it) {
+    //   std::cout  << *it << " , ";
+    // }
+    // std::cout << std::endl;
+
+    // std::cout << "inputCentroids: ";
+    // for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
+    //   std::cout  << *it << " , ";
+    // }
+    // std::cout << std::endl;
+
+    //std::cout << "Matrix D: " << std::endl;
     // Compute distance between each pair of object centroids and input centroids, respectively
     std::vector<std::vector<double>> D;
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
@@ -255,6 +273,55 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       D.push_back(matrix_row);
     }
+
+    // for (auto it = D.begin(); it != D.end(); ++it) {
+    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+    //     std::cout << *it2 << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+
+    // Remove illegal tracked objects
+    std::vector<int> illegal_objectIDs;
+    int obj_idx = 0;
+    for (auto it = D.begin(); it != D.end(); ++it) {
+      double min_dist = *(std::min_element(std::begin(*it), std::end(*it)));
+      if (min_dist > 10) {
+        std::cout << "Illegal objectID " << objectIDs[obj_idx] << " found" << std::endl;
+        illegal_objectIDs.push_back(objectIDs[obj_idx]);
+      }
+      obj_idx++;
+    }
+
+    for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
+      objects.erase(*it);
+    }
+
+    // Recompute matrix D
+    D.clear();
+    objectIDs.clear();
+    objectCentroids.clear();
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+      objectIDs.push_back(it->first);
+      objectCentroids.push_back(it->second);
+    }
+    // Compute distance between each pair of object centroids and input centroids, respectively
+    for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
+      std::vector<double> matrix_row;
+      for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
+        matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
+      }
+      D.push_back(matrix_row);
+    }
+
+    // std::cout << "Matrix D2:" << std::endl;
+    // for (auto it = D.begin(); it != D.end(); ++it) {
+    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+    //     std::cout << *it2 << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+
 
     /* Find the smallest value in each row and sort the row indexes 
       based on their minimum values so that the row with the smallest value
@@ -292,7 +359,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       auto objectID = objectIDs[row];
       objects[objectID] = inputCentroids[col];
       disappeared[objectID] = 0;
-
       usedRows.insert(row);
       usedCols.insert(col);
     }
@@ -305,10 +371,11 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     for (auto k = 0; k < D[0].size(); k++) {
       if (usedCols.find(k) == usedCols.end()) {
-        usedCols.insert(k);
+        unusedCols.insert(k);
       }
     }
-
+    //std::cout << "D.size(): " << D.size() << std::endl;
+    //std::cout << "D[0].size(): " << D[0].size() << std::endl;
     if (D.size() >= D[0].size()) {
       for (auto it = unusedRows.begin(); it != unusedRows.end(); ++it) {
         auto objectID = objectIDs[*it];
@@ -325,8 +392,10 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
     }
     else {
+      //std::cout << "unused col count: " << unusedCols.size() << std::endl;
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
         register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
+        std::cout << "REGISTER NEW SECOND" << std::endl;
       }
     }
   }
@@ -349,7 +418,7 @@ pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXY
     return (viewer);
 }
 
-// Dummy function - always return true
+// Always return true - just use distance thresholding
 bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINormal& b, float squared_d) {
   return true;
 }
@@ -359,6 +428,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 
   // Set up centroid tracking
   auto nextObjectID = 0;
+  auto totalCount = 0;
   std::map<int, pcl::PointXYZ> objects;
   std::map<int, int> disappeared;
 
@@ -373,6 +443,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cerr << "archive open error occured!" << std::endl;
     return;
   }
+  bool skip_files = false;
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
     pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -381,6 +452,13 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
+    if (std::string("1634794377.778308868.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
+      skip_files = false;
+    }
+    if (skip_files && !calibration) {
+      archive_read_data_skip(a);
+      continue;
+    }
 
     const auto fsize = archive_entry_size(a_entry);
     auto buffer = new char[fsize];
@@ -455,7 +533,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
                                                       paracon.boxfp.transform_pitch, 
                                                       paracon.boxfp.transform_yaw ));
       box_filter.filter(indices2);
-      std::cout << indices2.size() << std::endl;
+      // std::cout << indices2.size() << std::endl;
       if (calibration) {
         box_filter.filter(*target);
       }
@@ -503,7 +581,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         pcl::ConditionalEuclideanClustering<pcl::PointXYZINormal> cec (true);
         cec.setInputCloud(displayCloud_with_normals);
         cec.setConditionFunction(&customRegionGrowing);
-        cec.setClusterTolerance(1.0);
+        cec.setClusterTolerance(1.5);
         cec.setMinClusterSize(50);
         cec.segment(*clusters);
 
@@ -516,17 +594,16 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         }
       }
 
-      //std::cout << "Number of clusters: " << clusters->size() << std::endl;
-      
-      
-      update(centroids, objects, disappeared, nextObjectID);
+      std::cout << objects.size() << " tracked objects before update" << std::endl;
+      update(centroids, objects, disappeared, nextObjectID, totalCount);
       std::cout << "Total count: " << nextObjectID << std::endl;
-      std::cout << clusters->size() << " vehicles in frame" << std::endl;
+      std::cout << objects.size() << " tracked objects after update" << std::endl;
+      std::cout << clusters->size() << " total centroids in frame" << std::endl;
       std::cout << "==================" << std::endl;
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(200);
+      v->spinOnce(50);
     }
     else {
       while (1) {
