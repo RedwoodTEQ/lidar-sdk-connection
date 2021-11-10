@@ -256,6 +256,12 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       std::cout  << *it << " , ";
     }
     std::cout << std::endl;
+
+    std::cout << "inputCentroids: ";
+    for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
+      std::cout  << *it << " , ";
+    }
+    std::cout << std::endl;
     
     auto refPoint = pcl::PointXYZ(12.85, -19.25, 5.5);
     std::cout << "Matrix D: " << std::endl;
