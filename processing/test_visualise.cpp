@@ -245,61 +245,83 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
-    std::cout << "objectIDs: ";
-    for (auto it = objectIDs.begin(); it != objectIDs.end(); ++it) {
-      std::cout << *it << " , ";
-    }
-    std::cout << std::endl;
+    // std::cout << "objectIDs: ";
+    // for (auto it = objectIDs.begin(); it != objectIDs.end(); ++it) {
+    //   std::cout << *it << " , ";
+    // }
+    // std::cout << std::endl;
 
-    std::cout << "objectCentroids: ";
-    for (auto it = objectCentroids.begin(); it != objectCentroids.end(); ++it) {
-      std::cout  << *it << " , ";
-    }
-    std::cout << std::endl;
+    // std::cout << "objectCentroids: ";
+    // for (auto it = objectCentroids.begin(); it != objectCentroids.end(); ++it) {
+    //   std::cout  << *it << " , ";
+    // }
+    // std::cout << std::endl;
 
-    std::cout << "inputCentroids: ";
-    for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
-      std::cout  << *it << " , ";
-    }
-    std::cout << std::endl;
-    
-    auto refPoint = pcl::PointXYZ(12.85, -19.25, 5.5);
-    std::cout << "Matrix D: " << std::endl;
+    // std::cout << "inputCentroids: ";
+    // for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
+    //   std::cout  << *it << " , ";
+    // }
+    // std::cout << std::endl;
+
+    //std::cout << "Matrix D: " << std::endl;
     // Compute distance between each pair of object centroids and input centroids, respectively
     std::vector<std::vector<double>> D;
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
       std::vector<double> matrix_row;
       for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
-        auto dist_ref_old = pcl::euclideanDistance(refPoint, *it_oc);
-        auto dist_ref_new = pcl::euclideanDistance(refPoint, *it_ic);
-        // std::cout << "dist_ref_old: " << dist_ref_old << std::endl;
-        // std::cout << "dist_ref_new: " << dist_ref_new << std::endl;
-        if(dist_ref_old > dist_ref_new) {
-          auto dist_diff = dist_ref_old - dist_ref_new;
-          // std::cout << "CENTROID GOING BACKWARDS: " << dist_diff << std::endl;
-        }
         matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
       }
       D.push_back(matrix_row);
     }
 
-    for (auto it = D.begin(); it != D.end(); ++it) {
-      for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
-        std::cout << *it2 << " ";
-      }
-      std::cout << std::endl;
-    }
+    // for (auto it = D.begin(); it != D.end(); ++it) {
+    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+    //     std::cout << *it2 << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
 
     // Remove illegal tracked objects
-    std::vector<int> illegal_indexes;
+    std::vector<int> illegal_objectIDs;
     int obj_idx = 0;
     for (auto it = D.begin(); it != D.end(); ++it) {
-      double avg_dist = std::accumulate(it->begin(), it->end(), 0.0) / it->size();
-      if (avg_dist > 10) {
+      double min_dist = *(std::min_element(std::begin(*it), std::end(*it)));
+      if (min_dist > 10) {
         std::cout << "Illegal objectID " << objectIDs[obj_idx] << " found" << std::endl;
+        illegal_objectIDs.push_back(objectIDs[obj_idx]);
       }
       obj_idx++;
     }
+
+    for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
+      objects.erase(*it);
+    }
+
+    // Recompute matrix D
+    D.clear();
+    objectIDs.clear();
+    objectCentroids.clear();
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+      objectIDs.push_back(it->first);
+      objectCentroids.push_back(it->second);
+    }
+    // Compute distance between each pair of object centroids and input centroids, respectively
+    for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
+      std::vector<double> matrix_row;
+      for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
+        matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
+      }
+      D.push_back(matrix_row);
+    }
+
+    // std::cout << "Matrix D2:" << std::endl;
+    // for (auto it = D.begin(); it != D.end(); ++it) {
+    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+    //     std::cout << *it2 << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+
 
     /* Find the smallest value in each row and sort the row indexes 
       based on their minimum values so that the row with the smallest value
@@ -421,7 +443,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cerr << "archive open error occured!" << std::endl;
     return;
   }
-  bool skip_files = true;
+  bool skip_files = false;
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
     pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
