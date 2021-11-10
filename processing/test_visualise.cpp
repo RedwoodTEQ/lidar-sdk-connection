@@ -245,15 +245,54 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
+    std::cout << "objectIDs: ";
+    for (auto it = objectIDs.begin(); it != objectIDs.end(); ++it) {
+      std::cout << *it << " , ";
+    }
+    std::cout << std::endl;
 
+    std::cout << "objectCentroids: ";
+    for (auto it = objectCentroids.begin(); it != objectCentroids.end(); ++it) {
+      std::cout  << *it << " , ";
+    }
+    std::cout << std::endl;
+    
+    auto refPoint = pcl::PointXYZ(12.85, -19.25, 5.5);
+    std::cout << "Matrix D: " << std::endl;
     // Compute distance between each pair of object centroids and input centroids, respectively
     std::vector<std::vector<double>> D;
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
       std::vector<double> matrix_row;
       for (auto it_ic = inputCentroids.begin(); it_ic != inputCentroids.end(); ++it_ic) {
+        auto dist_ref_old = pcl::euclideanDistance(refPoint, *it_oc);
+        auto dist_ref_new = pcl::euclideanDistance(refPoint, *it_ic);
+        // std::cout << "dist_ref_old: " << dist_ref_old << std::endl;
+        // std::cout << "dist_ref_new: " << dist_ref_new << std::endl;
+        if(dist_ref_old > dist_ref_new) {
+          auto dist_diff = dist_ref_old - dist_ref_new;
+          // std::cout << "CENTROID GOING BACKWARDS: " << dist_diff << std::endl;
+        }
         matrix_row.push_back(pcl::euclideanDistance(*it_oc, *it_ic));
       }
       D.push_back(matrix_row);
+    }
+
+    for (auto it = D.begin(); it != D.end(); ++it) {
+      for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+        std::cout << *it2 << " ";
+      }
+      std::cout << std::endl;
+    }
+
+    // Remove illegal tracked objects
+    std::vector<int> illegal_indexes;
+    int obj_idx = 0;
+    for (auto it = D.begin(); it != D.end(); ++it) {
+      double avg_dist = std::accumulate(it->begin(), it->end(), 0.0) / it->size();
+      if (avg_dist > 10) {
+        std::cout << "Illegal objectID " << objectIDs[obj_idx] << " found" << std::endl;
+      }
+      obj_idx++;
     }
 
     /* Find the smallest value in each row and sort the row indexes 
@@ -527,9 +566,10 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         }
       }
 
+      std::cout << objects.size() << " tracked objects before update" << std::endl;
       update(centroids, objects, disappeared, nextObjectID, totalCount);
       std::cout << "Total count: " << nextObjectID << std::endl;
-      std::cout << objects.size() << " tracked objects" << std::endl;
+      std::cout << objects.size() << " tracked objects after update" << std::endl;
       std::cout << clusters->size() << " total centroids in frame" << std::endl;
       std::cout << "==================" << std::endl;
     }
