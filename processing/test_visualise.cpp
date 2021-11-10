@@ -368,7 +368,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cerr << "archive open error occured!" << std::endl;
     return;
   }
-  bool skip_files = true;
+  bool skip_files = false;
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
     pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -544,7 +544,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(200);
+      v->spinOnce(50);
     }
     else {
       while (1) {
