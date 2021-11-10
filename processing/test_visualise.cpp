@@ -302,11 +302,13 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     for (auto k = 0; k < D[0].size(); k++) {
       if (usedCols.find(k) == usedCols.end()) {
-        usedCols.insert(k);
+        unusedCols.insert(k);
       }
     }
-
+    //std::cout << "D.size(): " << D.size() << std::endl;
+    //std::cout << "D[0].size(): " << D[0].size() << std::endl;
     if (D.size() < D[0].size()) {
+      //std::cout << "unused col count: " << unusedCols.size() << std::endl;
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
         register_new(inputCentroids[*it], objects, nextObjectID);
         std::cout << "REGISTER NEW SECOND" << std::endl;
@@ -366,6 +368,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     std::cerr << "archive open error occured!" << std::endl;
     return;
   }
+  bool skip_files = true;
   while (archive_read_next_header(a, &a_entry) == ARCHIVE_OK) {
     pcl::PCLPointCloud2::Ptr rawIn (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -374,6 +377,13 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
+    if (std::string("1634794337.478530884.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
+      skip_files = false;
+    }
+    if (skip_files && !calibration) {
+      archive_read_data_skip(a);
+      continue;
+    }
 
     const auto fsize = archive_entry_size(a_entry);
     auto buffer = new char[fsize];
