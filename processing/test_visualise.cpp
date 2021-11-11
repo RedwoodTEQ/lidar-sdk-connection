@@ -105,6 +105,7 @@ typedef struct _parameter_configuration {
   PassThroughFilterParams   ptfp;
   BoxFilterParams boxfp;
   BackgroundFilterParams bgfp;
+  bool ec;
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
 typedef struct _bounding_box {
@@ -118,62 +119,54 @@ typedef struct _bounding_box {
 // https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
 template <typename T>
 std::vector<int> sort_indexes(const std::vector<T> &v) {
-
-  // initialize original index locations
   std::vector<int> idx(v.size());
   std::iota(idx.begin(), idx.end(), 0);
-
-  // sort indexes based on comparing values in v
-  // using std::stable_sort instead of std::sort
-  // to avoid unnecessary index re-orderings
-  // when v contains elements of equal values 
   std::stable_sort(idx.begin(), idx.end(),
        [&v](double i1, double i2) {return v[i1] < v[i2];});
-
   return idx;
 }
 
 BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
   BoundingBox bounding_box = {};
-  pcl::PointXYZ baseline = pcl::PointXYZ(-5.98, 11.31, 0);
-  pcl::PointXYZ baseline2 = pcl::PointXYZ(0, 20, 0);
-  pcl::PointXYZ baseline3 = pcl::PointXYZ(100, 0, 0);
+  pcl::PointXYZ closeLeftRefPoint = pcl::PointXYZ(-5.98, 11.31, 0);
+  pcl::PointXYZ closeRightRefPoint = pcl::PointXYZ(0, 20, 0);
+  pcl::PointXYZ farRightRefPoint = pcl::PointXYZ(100, 0, 0);
   auto min_height = 100.0;
   auto max_height = -100.0;
   auto min_dist = 1000.0;
   auto min_dist2 = 1000.0;
   auto min_dist3 = 1000.0;
-  auto closest_x = 0.0;
-  auto closest_y = 0.0;
-  auto closest_z = 0.0;
-  auto leftmost_x = 0.0;
-  auto leftmost_y = 0.0;
-  auto leftmost_z = 0.0;
-  auto farrightmost_x = 0.0;
-  auto farrightmost_y = 0.0;
-  auto farrightmost_z = 0.0;
+  auto closeLeft_x = 0.0;
+  auto closeLeft_y = 0.0;
+  auto closeLeft_z = 0.0;
+  auto closeRight_x = 0.0;
+  auto closeRight_y = 0.0;
+  auto closeRight_z = 0.0;
+  auto farRight_x = 0.0;
+  auto farRight_y = 0.0;
+  auto farRight_z = 0.0;
   for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = cluster_cloud->begin(); it != cluster_cloud->end(); ++it ) {
     auto current = pcl::PointXYZ(it->x, it->y, it->z);
-    auto dist = pcl::euclideanDistance(baseline, current);
-    auto dist2 = pcl::euclideanDistance(baseline2, current);
-    auto dist3 = pcl::euclideanDistance(baseline3, current);
+    auto dist = pcl::euclideanDistance(closeLeftRefPoint, current);
+    auto dist2 = pcl::euclideanDistance(closeRightRefPoint, current);
+    auto dist3 = pcl::euclideanDistance(farRightRefPoint, current);
     if (dist < min_dist) {
       min_dist = dist;
-      closest_x = it->x;
-      closest_y = it->y;
-      closest_z = it->z;
+      closeLeft_x = it->x;
+      closeLeft_y = it->y;
+      closeLeft_z = it->z;
     }
     if (dist2 < min_dist2) {
       min_dist2 = dist2;
-      leftmost_x = it->x;
-      leftmost_y = it->y;
-      leftmost_z = it->z;
+      closeRight_x = it->x;
+      closeRight_y = it->y;
+      closeRight_z = it->z;
     }
     if (dist3 < min_dist3) {
       min_dist3 = dist3;
-      farrightmost_x = it->x;
-      farrightmost_y = it->y;
-      farrightmost_z = it->z;
+      farRight_x = it->x;
+      farRight_y = it->y;
+      farRight_z = it->z;
     }
     if (it->z > max_height) {
       max_height = it->z;
@@ -185,8 +178,8 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   //std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
   //std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
   //std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
-  auto vehicle_width = sqrt(pow((leftmost_x - closest_x),2) + pow((leftmost_y - closest_y),2));
-  auto vehicle_length = sqrt(pow((farrightmost_x - closest_x),2) + pow((farrightmost_y - closest_y),2));
+  auto vehicle_width = sqrt(pow((closeRight_x - closeLeft_x),2) + pow((closeRight_y - closeLeft_y),2));
+  auto vehicle_length = sqrt(pow((farRight_x - closeRight_x),2) + pow((farRight_y - closeRight_y),2));
   auto vehicle_height = max_height - min_height;
   //std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
   return bounding_box;
@@ -199,7 +192,6 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   }
   pcl::PointXYZ c1;
   centroid.get(c1);
-  // std::cout << "Centroid is " << c1.x << " " << c1.y << " " << c1.z << std::endl;
   return c1;
 }
 
@@ -218,7 +210,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
-        //std::cout << "Deregistering object ID: " << it->first << std::endl;
         objects.erase(it->first);
         disappeared.erase(it++);
       } else {
@@ -232,7 +223,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
       register_new(*it, objects, disappeared, nextObjectID);
-      //std::cout << "FIRST NEW" << std::endl;
     }
   }
   else {
@@ -243,25 +233,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
-    // std::cout << "objectIDs: ";
-    // for (auto it = objectIDs.begin(); it != objectIDs.end(); ++it) {
-    //   std::cout << *it << " , ";
-    // }
-    // std::cout << std::endl;
 
-    // std::cout << "objectCentroids: ";
-    // for (auto it = objectCentroids.begin(); it != objectCentroids.end(); ++it) {
-    //   std::cout  << *it << " , ";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "inputCentroids: ";
-    // for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
-    //   std::cout  << *it << " , ";
-    // }
-    // std::cout << std::endl;
-
-    //std::cout << "Matrix D: " << std::endl;
     // Compute distance between each pair of object centroids and input centroids, respectively
     std::vector<std::vector<double>> D;
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
@@ -272,30 +244,24 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       D.push_back(matrix_row);
     }
 
-    // for (auto it = D.begin(); it != D.end(); ++it) {
-    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
-    //     std::cout << *it2 << " ";
-    //   }
-    //   std::cout << std::endl;
-    // }
-
-    // Remove illegal tracked objects
+    /* Remove objects that should not be tracked anymore due to
+       unreasonably large minimum distance to current objects */
     std::vector<int> illegal_objectIDs;
     int obj_idx = 0;
     for (auto it = D.begin(); it != D.end(); ++it) {
       double min_dist = *(std::min_element(std::begin(*it), std::end(*it)));
       if (min_dist > 10) {
-        std::cout << "Illegal objectID " << objectIDs[obj_idx] << " found" << std::endl;
         illegal_objectIDs.push_back(objectIDs[obj_idx]);
       }
       obj_idx++;
     }
 
+    // Erase illegal objects
     for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
       objects.erase(*it);
     }
 
-    // Recompute matrix D
+    // Recompute matrix D - without illegal objects
     D.clear();
     objectIDs.clear();
     objectCentroids.clear();
@@ -303,6 +269,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       objectIDs.push_back(it->first);
       objectCentroids.push_back(it->second);
     }
+
     // Compute distance between each pair of object centroids and input centroids, respectively
     for (auto it_oc = objectCentroids.begin(); it_oc != objectCentroids.end(); ++it_oc) {
       std::vector<double> matrix_row;
@@ -311,15 +278,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       D.push_back(matrix_row);
     }
-
-    // std::cout << "Matrix D2:" << std::endl;
-    // for (auto it = D.begin(); it != D.end(); ++it) {
-    //   for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
-    //     std::cout << *it2 << " ";
-    //   }
-    //   std::cout << std::endl;
-    // }
-
 
     /* Find the smallest value in each row and sort the row indexes 
       based on their minimum values so that the row with the smallest value
@@ -331,9 +289,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       rows_tmp.push_back(*std::min_element(std::begin(*d_it), std::end(*d_it)));
       cols_tmp.push_back(std::distance(std::begin(*d_it), std::min_element(std::begin(*d_it), std::end(*d_it))));
     }
-    // for (auto it = rows_tmp.begin(); it != rows_tmp.end(); ++it) {
-    //   std::cout << "row_tmp_val: " << *it << std::endl;
-    // }
+
     std::vector<int> rows = sort_indexes(rows_tmp);
     std::vector<double> cols(cols_tmp.size());
     int i = 0;
@@ -341,9 +297,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       cols[*it] = cols_tmp[i];
       i++;
     }
-    // for (auto it = cols.begin(); it != cols.end(); ++it) {
-    //   std::cout << "cols_val: " << *it << std::endl;
-    // }
 
     std::set<int> usedRows;
     std::set<int> usedCols;
@@ -418,7 +371,6 @@ bool customRegionGrowing(const pcl::PointXYZINormal& a, const pcl::PointXYZINorm
 }
 
 void inputAndFilter(bool calibration, const char* input_filename, pcl::PointCloud<pcl::PointXYZI>::Ptr target, pcl::PointCloud<pcl::PointXYZI>::Ptr displayCloud, pcl::visualization::PCLVisualizer::Ptr v, ParameterConfiguration paracon, bool exitAfterLastFrame) {
-  bool enable_clustering = true;
 
   // Set up centroid tracking
   auto nextObjectID = 0;
@@ -562,7 +514,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 
     pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
     std::vector<pcl::PointXYZ> centroids;
-    if (enable_clustering){
+    if (paracon.ec) {
       if (displayCloud->size() > 0) {
         pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
         pcl::search::KdTree<pcl::PointXYZI>::Ptr search_tree (new pcl::search::KdTree<pcl::PointXYZI>);
@@ -631,6 +583,7 @@ int main () {
   BackgroundFilterParams bgfp = {};
   auto lines = new std::vector<LineParams>();
   auto exitOnLastFrame = false;
+  auto enableClustering = true;
 
   // Read in initial camera params
   tinyxml2::XMLElement* icpElement = doc.FirstChildElement()->FirstChildElement("initialCameraParams");
@@ -664,6 +617,10 @@ int main () {
   // Decide if we should exit vtk on last frame (debug mode)
   tinyxml2::XMLElement* exitOnlastElement = doc.FirstChildElement()->FirstChildElement("exitAfterLastFrame");
   exitOnlastElement->QueryBoolText(&exitOnLastFrame);
+
+  // Decide if we should enable clustering (default: on, debug: off)
+  tinyxml2::XMLElement* enableClusteringElement = doc.FirstChildElement()->FirstChildElement("enableClustering");
+  enableClusteringElement->QueryBoolText(&enableClustering);
 
   // Read in pass through filter params
   tinyxml2::XMLElement* ptfpElement = doc.FirstChildElement()->FirstChildElement("passThroughFilter");
@@ -702,6 +659,7 @@ int main () {
   paracon.ptfp = ptfp;
   paracon.boxfp = boxfp;
   paracon.bgfp = bgfp;
+  paracon.ec = enableClustering;
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr calib_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr display_cloud (new pcl::PointCloud<pcl::PointXYZI>);
