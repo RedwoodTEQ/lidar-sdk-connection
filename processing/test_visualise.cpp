@@ -109,8 +109,9 @@ typedef struct _parameter_configuration {
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
 typedef struct _bounding_box {
-  pcl::PointXYZI closest;
-  pcl::PointXYZI furthest;
+  pcl::PointXYZ closeLeft;
+  pcl::PointXYZ closeRight;
+  pcl::PointXYZ farRight;
   double delta_x;
   double delta_y;
   double delta_z;
@@ -131,20 +132,14 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   pcl::PointXYZ closeLeftRefPoint = pcl::PointXYZ(-5.98, 11.31, 0);
   pcl::PointXYZ closeRightRefPoint = pcl::PointXYZ(0, 20, 0);
   pcl::PointXYZ farRightRefPoint = pcl::PointXYZ(100, 0, 0);
+  pcl::PointXYZ closeLeft;
+  pcl::PointXYZ closeRight;
+  pcl::PointXYZ farRight;
   auto min_height = 100.0;
   auto max_height = -100.0;
   auto min_dist = 1000.0;
   auto min_dist2 = 1000.0;
   auto min_dist3 = 1000.0;
-  auto closeLeft_x = 0.0;
-  auto closeLeft_y = 0.0;
-  auto closeLeft_z = 0.0;
-  auto closeRight_x = 0.0;
-  auto closeRight_y = 0.0;
-  auto closeRight_z = 0.0;
-  auto farRight_x = 0.0;
-  auto farRight_y = 0.0;
-  auto farRight_z = 0.0;
   for (pcl::PointCloud<pcl::PointXYZI>::const_iterator it = cluster_cloud->begin(); it != cluster_cloud->end(); ++it ) {
     auto current = pcl::PointXYZ(it->x, it->y, it->z);
     auto dist = pcl::euclideanDistance(closeLeftRefPoint, current);
@@ -152,21 +147,21 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
     auto dist3 = pcl::euclideanDistance(farRightRefPoint, current);
     if (dist < min_dist) {
       min_dist = dist;
-      closeLeft_x = it->x;
-      closeLeft_y = it->y;
-      closeLeft_z = it->z;
+      closeLeft.x = it->x;
+      closeLeft.y = it->y;
+      closeLeft.z = it->z;
     }
     if (dist2 < min_dist2) {
       min_dist2 = dist2;
-      closeRight_x = it->x;
-      closeRight_y = it->y;
-      closeRight_z = it->z;
+      closeRight.x = it->x;
+      closeRight.y = it->y;
+      closeRight.z = it->z;
     }
     if (dist3 < min_dist3) {
       min_dist3 = dist3;
-      farRight_x = it->x;
-      farRight_y = it->y;
-      farRight_z = it->z;
+      farRight.x = it->x;
+      farRight.y = it->y;
+      farRight.z = it->z;
     }
     if (it->z > max_height) {
       max_height = it->z;
@@ -178,10 +173,12 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   //std::cout << "Closest point is: " << closest_x << " " << closest_y << " " << closest_z << std::endl;
   //std::cout << "Leftmost point is: " << leftmost_x << " " << leftmost_y << " " << leftmost_z << std::endl;
   //std::cout << "Farrightmost point is: " << farrightmost_x << " " << farrightmost_y << " " << farrightmost_z << std::endl;
-  auto vehicle_width = sqrt(pow((closeRight_x - closeLeft_x),2) + pow((closeRight_y - closeLeft_y),2));
-  auto vehicle_length = sqrt(pow((farRight_x - closeRight_x),2) + pow((farRight_y - closeRight_y),2));
+  auto vehicle_width = sqrt(pow((closeRight.x - closeLeft.x),2) + pow((closeRight.y - closeLeft.y),2));
+  auto vehicle_length = sqrt(pow((farRight.x - closeRight.x),2) + pow((farRight.y - closeRight.y),2));
   auto vehicle_height = max_height - min_height;
   //std::cout << "L: " << vehicle_length << " W: " << vehicle_width << " H: " << vehicle_height << std::endl;
+  bounding_box.closeLeft = pcl::PointXYZ(closeLeft_x, closeLeft_y, closeLeft_z);
+  bounding_box.closeRight = pcl::PointXYZ(closeRight_x, closeRight_y, closeRight_z);
   return bounding_box;
 }
 
