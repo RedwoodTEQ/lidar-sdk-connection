@@ -284,7 +284,7 @@
         <enabled>true</enabled>
         <threshold>0.5</threshold>
     </backgroundFilter>
-    <!-- Set to true for debugging -->
+    <!-- Set to false for debugging -->
     <exitAfterLastFrame>true</exitAfterLastFrame>
 </process-config>
 <!--

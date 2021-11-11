@@ -203,6 +203,7 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   return c1;
 }
 
+// Object tracker derived from: https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
 void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared,  int &nextObjectID ) {
   objects[nextObjectID] = centroid;
   disappeared[nextObjectID] = 0;
@@ -212,21 +213,18 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
 void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
 
   if (inputCentroids.size() == 0) {
-    // std::cout << "NO CENTROIDS\n";
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
       it->second++;
     }
-    // std::cout << "NO CENTROIDS 2\n";
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
-        std::cout << "Deregistering object ID: " << it->first << std::endl;
+        //std::cout << "Deregistering object ID: " << it->first << std::endl;
         objects.erase(it->first);
         disappeared.erase(it++);
       } else {
         ++it;
       }
     }
-    // std::cout << "NO CENTROIDS 3\n";
     return;
   }
 
@@ -234,7 +232,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
       register_new(*it, objects, disappeared, nextObjectID);
-      std::cout << "FIRST NEW" << std::endl;
+      //std::cout << "FIRST NEW" << std::endl;
     }
   }
   else {
@@ -374,8 +372,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
         unusedCols.insert(k);
       }
     }
-    //std::cout << "D.size(): " << D.size() << std::endl;
-    //std::cout << "D[0].size(): " << D[0].size() << std::endl;
     if (D.size() >= D[0].size()) {
       for (auto it = unusedRows.begin(); it != unusedRows.end(); ++it) {
         auto objectID = objectIDs[*it];
@@ -383,7 +379,6 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
         if (it->second > MAX_FRAMES_DISAPPEARED) {
-          std::cout << "Deregistering object ID: " << it->first << std::endl;
           objects.erase(it->first);
           disappeared.erase(it++);
         } else {
@@ -392,10 +387,9 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
     }
     else {
-      //std::cout << "unused col count: " << unusedCols.size() << std::endl;
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
         register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
-        std::cout << "REGISTER NEW SECOND" << std::endl;
+        //std::cout << "REGISTER NEW SECOND" << std::endl;
       }
     }
   }
@@ -429,6 +423,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
   // Set up centroid tracking
   auto nextObjectID = 0;
   auto totalCount = 0;
+  auto lastCount = 0;
   std::map<int, pcl::PointXYZ> objects;
   std::map<int, int> disappeared;
 
@@ -451,7 +446,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr passThroughBetter (new pcl::PointCloud<pcl::PointXYZI>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
-    std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
+    //std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
     if (std::string("1634794377.778308868.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
       skip_files = false;
     }
@@ -561,7 +556,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     else {
       pcl::copyPointCloud(*boxBetter, *displayCloud);
     }
-    std::cout << "==================" << std::endl;
+    
     //std::cout << "Points in frame: " << displayCloud->size() << std::endl;
     // // Clustering test
 
@@ -594,12 +589,18 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
         }
       }
 
-      std::cout << objects.size() << " tracked objects before update" << std::endl;
+      //std::cout << objects.size() << " tracked objects before update" << std::endl;
       update(centroids, objects, disappeared, nextObjectID, totalCount);
-      std::cout << "Total count: " << nextObjectID << std::endl;
-      std::cout << objects.size() << " tracked objects after update" << std::endl;
-      std::cout << clusters->size() << " total centroids in frame" << std::endl;
-      std::cout << "==================" << std::endl;
+      if (lastCount != nextObjectID) {
+        lastCount = nextObjectID;
+        std::cout << "==================" << std::endl;
+        std::cout << "Total count: " << nextObjectID << std::endl;
+        std::cout << "==================" << std::endl;
+      }
+      
+      //std::cout << objects.size() << " tracked objects after update" << std::endl;
+      //std::cout << clusters->size() << " total centroids in frame" << std::endl;
+      
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
