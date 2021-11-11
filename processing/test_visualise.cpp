@@ -109,6 +109,7 @@ typedef struct _parameter_configuration {
 } ParameterConfiguration, *ParameterConfigurationPtr;
 
 typedef struct _bounding_box {
+  pcl::PointXYZ centroid;
   pcl::PointXYZ closeLeft;
   pcl::PointXYZ closeRight;
   pcl::PointXYZ farRight;
@@ -141,7 +142,7 @@ double distanceToTop(pcl::PointXYZ p) {
   return dist;
 }
 
-BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud) {
+BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud, pcl::PointXYZ centroid) {
   BoundingBox bounding_box = {};
   pcl::PointXYZ closeLeftRefPoint = pcl::PointXYZ(10.75, -3.75, -3.5);
   pcl::PointXYZ closeRightRefPoint = pcl::PointXYZ(3, -10, -4.75);
@@ -187,6 +188,7 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
   }
   auto vehicle_width = sqrt(pow((closeRight.x - closeLeft.x),2) + pow((closeRight.y - closeLeft.y),2));
   auto vehicle_length = sqrt(pow((farRight.x - closeRight.x),2) + pow((farRight.y - closeRight.y),2));
+  bounding_box.centroid = centroid;
   bounding_box.closeLeft = closeLeft;
   bounding_box.closeRight = closeRight;
   bounding_box.farRight = farRight;
@@ -213,11 +215,8 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
   nextObjectID++;
 }
 
-void update(std::vector<std::pair<pcl::PointXYZ, BoundingBox>> centroidInfo, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
-  auto inputCentroids = std::vector<pcl::PointXYZ>();
-  for (auto it = centroidInfo.begin(); it != centroidInfo.end(); ++it) {
-    inputCentroids.push_back(it->first);
-  }
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
+
   if (inputCentroids.size() == 0) {
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
       it->second++;
@@ -531,7 +530,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     // // Clustering test
 
     pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
-    std::vector<std::pair<pcl::PointXYZ, BoundingBox>> centroidInfo;
+    std::vector<pcl::PointXYZ> centroids;
     std::map<pcl::PointXYZ, BoundingBox> bbMap;
     if (paracon.ec) {
       if (displayCloud->size() > 0) {
@@ -555,14 +554,14 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
           pcl::PointCloud<pcl::PointXYZI>::Ptr extracted_cloud(new pcl::PointCloud<pcl::PointXYZI>);
           pcl::copyPointCloud(*displayCloud, (*clusters)[i].indices, *extracted_cloud);
           pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
-          BoundingBox bb = determineBoundingBox(extracted_cloud);
-          centroidInfo.push_back(std::pair<pcl::PointXYZ, BoundingBox>(cent, bb));
+          BoundingBox bb = determineBoundingBox(extracted_cloud, cent);
+          centroids.push_back(cent);
           
         }
       }
 
       //std::cout << objects.size() << " tracked objects before update" << std::endl;
-      update(centroidInfo, objects, disappeared, nextObjectID, totalCount);
+      update(centroids, objects, disappeared, nextObjectID, totalCount);
       if (lastCount != nextObjectID) {
         lastCount = nextObjectID;
         
