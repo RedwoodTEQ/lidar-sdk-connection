@@ -178,9 +178,11 @@ BoundingBox determineBoundingBox(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cl
     auto dist_from_bottom = distanceToBottom(current);
 
     if (dist_from_top < min_dist_from_top) {
+      min_dist_from_top = dist_from_top;
       topPoint = current;
     }
     if (dist_from_bottom < min_dist_from_bottom) {
+      min_dist_from_bottom = min_dist_from_bottom;
       bottomPoint = current;
     }
     
@@ -208,6 +210,68 @@ pcl::PointXYZ calculateCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr input) {
   return c1;
 }
 
+bool pointsEqual(pcl::PointXYZ a, pcl::PointXYZ b) {
+  return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+}
+
+BoundingBox getBoundingBoxByCentroid(pcl::PointXYZ centroid, std::vector<BoundingBox> bbs) {
+  for (auto it = bbs.begin(); it != bbs.end(); ++it) {
+    if (pointsEqual(it->centroid, centroid)) {
+      return *it;
+    }
+  }
+}
+
+std::pair<std::vector<double>, double> vehicleDimsAndSpeed(std::vector<BoundingBox> bbs) {
+  
+  auto max_width = 0.0;
+  auto max_length = 0.0;
+  auto max_height = 0.0;
+
+  pcl::PointXYZ prev_centroid;
+  int frame = 0;
+  std::vector<double> centroid_spacing;
+  for (auto it = bbs.begin(); it != bbs.end(); ++it) {
+    if (it->width > max_width) {
+      max_width = it->width;
+    }
+    if (it->length > max_length) {
+      max_length = it->length;
+    }
+    if (it->height > max_height) {
+      max_height = it->height;
+    }
+    if (frame > 0) {
+      centroid_spacing.push_back(pcl::euclideanDistance(prev_centroid, it->centroid));
+    }
+    prev_centroid = it->centroid;
+    frame++;
+  }
+
+  auto dims = std::vector<double>({max_width, max_length, max_height});
+  auto avg_speed = 0.0;
+  if (centroid_spacing.size() > 0) {
+    avg_speed = std::accumulate(centroid_spacing.begin(), centroid_spacing.end(), 0.0) / centroid_spacing.size();
+  }
+  return std::pair<std::vector<double>,double>(dims, avg_speed);
+}
+
+void printVehicleInfo(int objectID, std::map<int, std::vector<BoundingBox>> vehicleInfo) {
+  auto info = vehicleInfo[objectID];
+  auto agg_info = vehicleDimsAndSpeed(info);
+  auto dims = agg_info.first;
+  std::cout << "==================" << std::endl;
+  std::cout << "Summary of object ID " << objectID << ":" << std::endl;
+  std::cout << "Visible for " << info.size() << " frames" << std::endl;
+  if (dims.size() == 3) {
+    std::cout << "L: " << dims[1] << " W: " << dims[0] << " H: " << dims[2] << std::endl;
+  }
+  auto speed_kms = std::round(agg_info.second * 36);
+  std::cout << "Average speed: " << speed_kms << "km/h" << std::endl;
+  std::cout << "==================" << std::endl;
+}
+
+
 // Object tracker derived from: https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
 void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared,  int &nextObjectID ) {
   objects[nextObjectID] = centroid;
@@ -215,7 +279,7 @@ void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects
   nextObjectID++;
 }
 
-void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount ) {
+void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount, std::map<int, std::vector<BoundingBox>>& vehicleInfo ) {
 
   if (inputCentroids.size() == 0) {
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
@@ -223,8 +287,10 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
+        printVehicleInfo(it->first, vehicleInfo);
         objects.erase(it->first);
         disappeared.erase(it++);
+        vehicleInfo.erase(it->first);
       } else {
         ++it;
       }
@@ -271,7 +337,9 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
 
     // Erase illegal objects
     for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
+      printVehicleInfo(*it, vehicleInfo);
       objects.erase(*it);
+      vehicleInfo.erase(*it);
     }
 
     // Recompute matrix D - without illegal objects
@@ -345,8 +413,10 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
         if (it->second > MAX_FRAMES_DISAPPEARED) {
+          printVehicleInfo(it->first, vehicleInfo);
           objects.erase(it->first);
           disappeared.erase(it++);
+          vehicleInfo.erase(it->first);
         } else {
           ++it;
         }
@@ -363,9 +433,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   return;
 }
 
-bool pointsEqual(pcl::PointXYZ a, pcl::PointXYZ b) {
-  return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
-}
+
 
 pcl::visualization::PCLVisualizer::Ptr mapping_vis (pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, CameraParams icp, std::vector<LineParams>* lps)
 {
@@ -395,6 +463,8 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
   auto lastCount = 0;
   std::map<int, pcl::PointXYZ> objects;
   std::map<int, int> disappeared;
+
+  std::map<int, std::vector<BoundingBox>> vehicleInfo; // main data structure
 
   struct archive *a;
   struct archive_entry *a_entry;
@@ -531,7 +601,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
 
     pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters); 
     std::vector<pcl::PointXYZ> centroids;
-    std::map<pcl::PointXYZ, BoundingBox> bbMap;
+    std::vector<BoundingBox> bbs;
     if (paracon.ec) {
       if (displayCloud->size() > 0) {
         pcl::PointCloud<pcl::PointXYZINormal>::Ptr displayCloud_with_normals (new pcl::PointCloud<pcl::PointXYZINormal>);
@@ -556,17 +626,29 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
           pcl::PointXYZ cent = calculateCentroid(extracted_cloud);
           BoundingBox bb = determineBoundingBox(extracted_cloud, cent);
           centroids.push_back(cent);
-          
+          bbs.push_back(bb);
         }
       }
 
       //std::cout << objects.size() << " tracked objects before update" << std::endl;
-      update(centroids, objects, disappeared, nextObjectID, totalCount);
+      update(centroids, objects, disappeared, nextObjectID, totalCount, vehicleInfo);
       if (lastCount != nextObjectID) {
         lastCount = nextObjectID;
         
         std::cout << "Total count: " << nextObjectID << std::endl;
         
+      }
+      for (auto it = objects.begin(); it != objects.end(); ++it) {
+        auto obj_bb = getBoundingBoxByCentroid(objects[it->first], bbs);
+
+        if (vehicleInfo.find(it->first) != vehicleInfo.end()) {
+          vehicleInfo[it->first].push_back(obj_bb);
+        }
+        else {
+          std::vector<BoundingBox> bb_vec;
+          bb_vec.push_back(obj_bb);
+          vehicleInfo.insert(std::pair<int, std::vector<BoundingBox>>(it->first, bb_vec));
+        }
       }
       // for (auto it = objects.begin(); it != objects.end(); ++it) {
       //   auto obj_id = it->first;
