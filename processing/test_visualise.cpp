@@ -256,6 +256,22 @@ std::pair<std::vector<double>, double> vehicleDimsAndSpeed(std::vector<BoundingB
   return std::pair<std::vector<double>,double>(dims, avg_speed);
 }
 
+std::string classifyVehicle(std::vector<double> dims) {
+  auto length = dims[1];
+  if (length < 1.0) {
+    return std::string("motorcycle");
+  }
+  else if (length < 3.3) {
+    return std::string("car");
+  } 
+  else if (length < 4.4){
+    return std::string("utility/van");
+  }
+  else {
+    return std::string("truck");
+  }
+} 
+
 void printVehicleInfo(int objectID, std::map<int, std::vector<BoundingBox>> vehicleInfo) {
   auto info = vehicleInfo[objectID];
   auto agg_info = vehicleDimsAndSpeed(info);
@@ -266,6 +282,7 @@ void printVehicleInfo(int objectID, std::map<int, std::vector<BoundingBox>> vehi
   if (dims.size() == 3) {
     std::cout << "L: " << dims[1] << " W: " << dims[0] << " H: " << dims[2] << std::endl;
   }
+  std::cout << "Vehicle classification: " << classifyVehicle(dims) << std::endl;
   auto speed_kms = std::round(agg_info.second * 36);
   std::cout << "Average speed: " << speed_kms << "km/h" << std::endl;
   std::cout << "==================" << std::endl;
@@ -329,7 +346,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     int obj_idx = 0;
     for (auto it = D.begin(); it != D.end(); ++it) {
       double min_dist = *(std::min_element(std::begin(*it), std::end(*it)));
-      if (min_dist > 10) {
+      if (min_dist > 5) {
         illegal_objectIDs.push_back(objectIDs[obj_idx]);
       }
       obj_idx++;
@@ -339,6 +356,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
       printVehicleInfo(*it, vehicleInfo);
       objects.erase(*it);
+      disappeared.erase(*it);
       vehicleInfo.erase(*it);
     }
 
@@ -486,7 +504,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     //std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
-    if (std::string("1634794377.778308868.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
+    if (std::string("1634794383.078468084.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
       skip_files = false;
     }
     if (skip_files && !calibration) {
@@ -495,7 +513,7 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     }
 
     const auto fsize = archive_entry_size(a_entry);
-    auto buffer = new char[fsize];
+    char buffer[fsize];
     auto read_result = archive_read_data(a, buffer, fsize);
 
     // Ensure number of bytes read from the current pcd file in archive matches its actual size
@@ -674,11 +692,11 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(50);
+      v->spinOnce(10);
     }
     else {
       while (1) {
-        v->spinOnce(50);
+        v->spinOnce(10);
       }
     }
   }
