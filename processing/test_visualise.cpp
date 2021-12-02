@@ -288,26 +288,58 @@ void printVehicleInfo(int objectID, std::map<int, std::vector<BoundingBox>> vehi
   std::cout << "==================" << std::endl;
 }
 
+void dumpVehicleInfo(std::vector<BoundingBox> vehicleInfo) {
+  std::cout << "==START VEHICLE INFO DUMP==" << std::endl;
+  int i = 0;
+  for (auto it = vehicleInfo.begin(); it != vehicleInfo.end(); ++it) {
+    std::cout << "==================" << std::endl;
+    std::cout << "Frame [" << i << "]:" << std::endl;
+    std::cout << "  Centroid: " << it->centroid.x << " " << it->centroid.y << " " << it->centroid.z << std::endl;
+    std::cout << "==================" << std::endl;
+    i++;
+  }
+  std::cout << "==END DUMP VEHICLE INFO DUMP==" << std::endl;
+}
+
+void dumpAll(std::map<int, std::vector<BoundingBox>> &all) {
+  std::cout << "=======>START DUMP ALL<===========" << std::endl;
+  for (auto map_it = all.begin(); map_it != all.end(); ++map_it) {
+    std::cout << "VEHICLE ID: [" << map_it->first << "]" << std::endl;
+    dumpVehicleInfo(map_it->second);
+  }
+  std::cout << "=======>END DUMP ALL<===========" << std::endl;
+}
+
 
 // Object tracker derived from: https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
 void register_new (pcl::PointXYZ centroid, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared,  int &nextObjectID ) {
   objects[nextObjectID] = centroid;
   disappeared[nextObjectID] = 0;
+  // std::cout << "POST REGISTER:" << std::endl;
+  // std::cout << "Num disappeared:" << disappeared.size() << std::endl;
+  // std::cout << "Disappeared: ";
+  // for (auto it = disappeared.begin(); it != disappeared.end(); ++it){
+  //   std::cout << "(" << it->first << "," << it->second << ") ";
+  // }
+  // std::cout << std::endl;
   nextObjectID++;
 }
 
 void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointXYZ> &objects, std::map<int, int> &disappeared, int &nextObjectID, int& totalCount, std::map<int, std::vector<BoundingBox>>& vehicleInfo ) {
-
+  //dumpAll(vehicleInfo);
   if (inputCentroids.size() == 0) {
     for (auto it = disappeared.begin(); it != disappeared.end(); ++it) {
       it->second++;
     }
     for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
       if (it->second > MAX_FRAMES_DISAPPEARED) {
+        //std::cout << "VEHICLE [" << it->first << "] EXCEEDED DISAPPEAR #1 THRESHOLD" << std::endl;
         printVehicleInfo(it->first, vehicleInfo);
+        //dumpVehicleInfo(vehicleInfo[it->first]);
         objects.erase(it->first);
-        disappeared.erase(it++);
         vehicleInfo.erase(it->first);
+        disappeared.erase(it++);
+
       } else {
         ++it;
       }
@@ -318,6 +350,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
   // If we are not currently tracking any objects
   if (objects.size() == 0) {
     for (auto it = inputCentroids.begin(); it != inputCentroids.end(); ++it) {
+      //std::cout << "REGISTER1 with ID " << nextObjectID << std::endl;
       register_new(*it, objects, disappeared, nextObjectID);
     }
   }
@@ -354,6 +387,7 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
 
     // Erase illegal objects
     for (auto it = illegal_objectIDs.begin(); it != illegal_objectIDs.end(); ++it) {
+      //std::cout << "VEHICLE [" << *it << "] EXCEEDED DISAPPEAR #1 THRESHOLD" << std::endl;
       printVehicleInfo(*it, vehicleInfo);
       objects.erase(*it);
       disappeared.erase(*it);
@@ -431,10 +465,11 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
       }
       for (auto it = disappeared.cbegin(); it != disappeared.cend(); ) {
         if (it->second > MAX_FRAMES_DISAPPEARED) {
+          //std::cout << "VEHICLE [" << it->first << "] EXCEEDED DISAPPEAR #2 THRESHOLD" << std::endl;
           printVehicleInfo(it->first, vehicleInfo);
           objects.erase(it->first);
-          disappeared.erase(it++);
           vehicleInfo.erase(it->first);
+          disappeared.erase(it++);
         } else {
           ++it;
         }
@@ -442,8 +477,8 @@ void update(std::vector<pcl::PointXYZ> inputCentroids, std::map<int, pcl::PointX
     }
     else {
       for (auto it = unusedCols.begin(); it != unusedCols.end(); ++it) {
+        //std::cout << "REGISTER2 with ID " << nextObjectID << std::endl;
         register_new(inputCentroids[*it], objects, disappeared, nextObjectID);
-        //std::cout << "REGISTER NEW SECOND" << std::endl;
       }
     }
   }
@@ -504,13 +539,14 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     pcl::PointCloud<pcl::PointXYZI>::Ptr boxBetter (new pcl::PointCloud<pcl::PointXYZI>);
 
     //std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
-    if (std::string("1634794383.078468084.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
+    if (std::string("1634794376.079110861.ascii.pcd").compare(archive_entry_pathname(a_entry)) == 0) {
       skip_files = false;
     }
     if (skip_files && !calibration) {
       archive_read_data_skip(a);
       continue;
     }
+    //std::cout << "Reading: " << archive_entry_pathname(a_entry) << std::endl;
 
     const auto fsize = archive_entry_size(a_entry);
     char buffer[fsize];
@@ -692,11 +728,11 @@ void inputAndFilter(bool calibration, const char* input_filename, pcl::PointClou
     }
     v->updatePointCloud<pcl::PointXYZI>(displayCloud, "sample cloud");
     if (exitAfterLastFrame) {
-      v->spinOnce(10);
+      v->spinOnce(30);
     }
     else {
       while (1) {
-        v->spinOnce(10);
+        v->spinOnce(30);
       }
     }
   }
